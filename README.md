@@ -1,4 +1,4 @@
-# Aria · Ariadne Transformer
+# Aria Transformer
 
 <p align="center">
   <img src="assets/aria-logo-transparent.png" alt="Aria" width="360" />
