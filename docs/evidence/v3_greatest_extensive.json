@@ -1,0 +1,58 @@
+{
+  "id": "ord=O+D+M+P|c=diffusion|e=2|m=identity|d=flip|r=strict|K=0|S=single_phi",
+  "config": {
+    "phi_order": [
+      "OpticalStep",
+      "Diffuse",
+      "Match",
+      "Predict"
+    ],
+    "conditioning": "diffusion",
+    "eps": 2,
+    "match_policy": "identity",
+    "diff_policy": "flip",
+    "residual_model": "strict",
+    "k_stutter": 0,
+    "structure": "single_phi"
+  },
+  "sound_core": true,
+  "sound_extended": true,
+  "winning": true,
+  "score": 1650.0,
+  "metrics": {
+    "inv1": true,
+    "inv2": true,
+    "inv3": true,
+    "inv4": true,
+    "inv5_stutter_budget": true,
+    "inv6_score_r": true,
+    "inv7_graph_growth": true,
+    "inv8_ed_typeok": true,
+    "inv9_energy_all_next": true,
+    "inv10_addressable": true,
+    "jepa_trend": 1.0,
+    "residual_final": 0.0,
+    "max_consecutive_stutter": 0,
+    "graph_final": 0,
+    "tlc_pass": true,
+    "failures": [],
+    "trajectory_preview": [
+      "OpticalStep",
+      "Diffuse",
+      "Match",
+      "Predict",
+      "OpticalStep",
+      "Diffuse",
+      "Match",
+      "Predict",
+      "OpticalStep",
+      "Diffuse",
+      "Match",
+      "Predict",
+      "OpticalStep",
+      "Diffuse",
+      "Match",
+      "Predict"
+    ]
+  }
+}

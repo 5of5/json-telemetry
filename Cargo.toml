@@ -1,0 +1,37 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/aria-core",
+    "crates/aria-backends",
+    "crates/aria-cli",
+    "crates/aria-wasm",
+    "python/aria-py",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+authors = ["Aria Contributors"]
+repository = "https://github.com/aria-ai/aria"
+homepage = "https://github.com/aria-ai/aria"
+documentation = "https://github.com/aria-ai/aria"
+readme = "README.md"
+rust-version = "1.80"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+num-complex = { version = "0.4", features = ["serde"] }
+num-traits = "0.2"
+# No OS entropy: every backend is seeded explicitly, which keeps runs
+# reproducible and lets the same code compile for wasm32-unknown-unknown.
+rand = { version = "0.8", default-features = false, features = ["std_rng", "alloc"] }
+rand_distr = { version = "0.4", default-features = false }
+thiserror = "2"
+clap = { version = "4", features = ["derive"] }
+log = "0.4"
+env_logger = "0.11"
+proptest = "1"
+tempfile = "3"

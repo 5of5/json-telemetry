@@ -1,0 +1,261 @@
+%% ==============================================================================
+%% ARIA · ARIADNE TRANSFORMER — v0.1.0 MASTER ARCHITECTURE
+%% Optical interference · Pure JEPA latent prediction · Experience graph · TLA⁺-verified
+%% Sources: crates/aria-core · crates/aria-backends · crates/aria-cli · crates/aria-wasm
+%%          python/aria-py · python/training · www · docs/* · spec/Aria.tla (TLC)
+%% Authority: FORMAL_SPEC · SAFETY · TRACES
+%% ==============================================================================
+%%{init: {"flowchart": {"defaultRenderer": "elk", "nodeSpacing": 40, "rankSpacing": 60}, "themeVariables": {"fontSize": "14px"}}}%%
+flowchart TB
+
+    TITLE["ARIA · Ariadne Transformer — v0.1.0 Master Architecture<br/>an optical–JEPA–graph dynamical system, not a residual-stream Softmax transformer<br/>Φ = Diff ∘ Match ∘ P ∘ U&nbsp;&nbsp;·&nbsp;&nbsp;Spec ≜ Init ∧ □[Next]_vars&nbsp;&nbsp;·&nbsp;&nbsp;Next ≜ O ∨ P ∨ M ∨ D ∨ S<br/>Phases 0–4 complete · one runner · Inv1–4 Spec · Inv5–11 observe-only"]:::title
+
+    %% ============================ ACCESS SURFACES ============================
+    USER(["👤 USER"]):::actor
+
+    subgraph SURFACES["ACCESS SURFACES — one Spec engine, every host · Exit₂ parity"]
+        direction LR
+        CLI["⌘ CLI · package aria-engine (crates/aria-cli)<br/>aria run · step · check · bench · dataset<br/>--schedule opmd · --steps N · --predictor weights.json<br/>--gates all · --strict-gates · --output trace.jsonl"]:::cli
+        RLIB["📦 Rust library<br/>use aria_engine_core::prelude::*<br/>use aria_engine_backends::*<br/>Engine::init · apply · step_phi · check · run_with_gates"]:::cli
+        PY["🐍 Python · package aria-engine-py (python/aria-py)<br/>import aria · AriaEngine.step_phi · aria.run(...)<br/>byte-identical to CLI via runner::run"]:::cli
+        WASM["🌐 WASM · package aria-engine-wasm (crates/aria-wasm)<br/>wasm-bindgen · run(configJson, steps)<br/>browser demo + Node parity · |Δ| ≤ 6e-15"]:::cli
+    end
+
+    RUNNER["🔗 Shared reference runner — aria_engine_backends::runner::run<br/>CLI ∧ Python ∧ WASM call ONE function · structural parity, not hand-synced forks"]:::cfg
+
+    CFG["⚙ AriaConfig (TOML / CLI flags)<br/>n_modes=256 · latent_dim=64 · ε=1.0 · stutter_k=2 · schedule=opmd<br/>match_policy · diff_policy · condition · strict=true · max|G|=10k · seed<br/>gates=[] (Inv5–11 off by default) · predictor path optional"]:::cfg
+
+    %% ============================ CORE ENGINE ============================
+    subgraph CORE["⚙ aria-engine-core v0.1.0 — Spec-faithful state machine<br/>state · action · engine · invariants · gates · scheduler · config · trace · graph"]
+        direction TB
+        INIT["INIT — FORMAL_SPEC §5<br/>ψ = ψ₀ (normalized field) · z₀ = I(ψ₀) · G = G₀ · t = 0<br/>prevRes = d( z₀, P(z₀, a₀) ) · energy₀ = ‖ψ₀‖₂ cached for Inv1<br/>Engine::init validates shapes (errors, not panics)"]:::init
+
+        SCHED["Scheduler — policy, not Spec (scheduler.rs)<br/>OPMD = preferred Φ-cycle O→P→M→D (𝐂4) · stutter budget K=2 (𝐂5)<br/>optical-first bias (𝐂7) · P-before-M when residual cold (𝐂8)<br/>residual-adaptive Match eligibility · custom schedules o/p/m/d/s"]:::policy
+
+        COND["Conditioning aₜ (𝐂2)<br/>token · diffusion · world_model<br/>one latent space — change of<br/>conditioning only, no architecture change"]:::cfg
+
+        subgraph PHI["Φ-CYCLE — data plane · preferred schedule O→P→M→D (𝐂4)<br/>exactly five named actions in Next (LOCKED §1.1 · G2 alphabet gate · no sixth variant)"]
+            direction TB
+            PSI["STATE · ψ ∈ ℂᴺ = H<br/>optical field amplitudes · 𝔸1<br/>energy ‖ψ‖₂"]:::state
+            O["① O · OpticalStep — §6.1<br/>ψ′ = U_t(ψ) — unitary interference · 𝔸4<br/>UNCHANGED ⟨z, G, t⟩"]:::action
+            P["② P · Predict — §6.2<br/>z′ = P( I(ψ), aₜ ) — JEPA latent prediction · ℙ2<br/>UNCHANGED ⟨ψ, G, t⟩"]:::action
+            ZV["STATE · z ∈ 𝒵 · dim = latent_dim<br/>JEPA latent — pure latent prediction<br/>no decoder in core · 𝔸2"]:::state
+            M["③ M · Match — §6.3<br/>G′ = ED( G ⊕ z, G★ ) — elementary edits · ℙ3<br/>UNCHANGED ⟨ψ, z, t⟩"]:::action
+            GV["STATE · G = (V, E) directed typed graph<br/>node embeddings ∈ 𝒵 · typed morphisms<br/>|G| ≤ max_graph_size · 𝔸3"]:::state
+            D["④ D · Diffuse — §6.4<br/>z′ = Diff_G(z) · t′ = t+1 — atomic diffusion sample<br/>UNCHANGED ⟨ψ, G⟩"]:::action
+            TV["STATE · t ∈ ℕ — discrete clock<br/>prevRes ∈ ℝ≥0 — previous residual<br/>(aux history, Inv2 only; TLA-faithful)"]:::state
+            S["S · Stutter — TLA stuttering<br/>UNCHANGED all vars (not in Φ ring)<br/>fairness budget K (𝐂5)"]:::stutter
+        end
+
+        RES["RESIDUAL — JEPA predictive score<br/>Res(ψ, z, t) = d( z, P(I(ψ), aₜ) )<br/>recomputed every step<br/>prevRes′ = Res(pre-state) on non-stutter"]:::policy
+
+        subgraph GATE["INVARIANT GATE — Inv1–4 checked after EVERY apply · jointly inductive under Next"]
+            direction LR
+            I1["Inv1 — energy<br/>‖ψ‖₂ = ‖ψ₀‖₂<br/>witness: O<br/>(exact unitarity, 𝔸4)"]:::inv
+            I2["Inv2 — contractivity<br/>Res ≤ prevRes + ε<br/>witness: P<br/>(𝔼[Lip(P)] ≤ 1, ℙ2)"]:::inv
+            I3["Inv3 — graph integrity<br/>GraphOK(G): typed nodes/edges<br/>embeddings ∈ 𝒵<br/>witness: M (ℙ3)"]:::inv
+            I4["Inv4 — TypeOK<br/>ψ ∈ ℂᴺ · z ∈ 𝒵 · G finite typed<br/>t ∈ ℕ · shapes<br/>witness: every action"]:::inv
+        end
+
+        subgraph OPGATES["OPERATING GATES Inv5–11 — Phase 4 · observers only · NEVER Spec enlargement"]
+            direction LR
+            G5["Inv5 stutter budget K"]:::gate
+            G6["Inv6 residual productivity"]:::gate
+            G7["Inv7 merge acyclicity"]:::gate
+            G8["Inv8 JEPA window trend"]:::gate
+            G9["Inv9 energy every action"]:::gate
+            G10["Inv10 Match well-typed"]:::gate
+            G11["Inv11 fair productivity"]:::gate
+        end
+
+        ERR["✗ Inv1–4 strict violation<br/>rollback ψ / z / G / t / prevRes<br/>AriaError::InvariantViolation<br/>non-strict: log and continue (research only)"]:::err
+
+        GATEBREACH["GateBreach (Inv5–11) — separately reported<br/>cannot abort apply · --strict-gates exits non-zero<br/>off unless configured (gates = [] = Phase-1 behavior)"]:::gate
+    end
+
+    %% ============================ BACKENDS ============================
+    subgraph BACKENDS["🔧 aria-engine-backends v0.1.0 — pluggable operator traits · electronic sim of the same Spec machine"]
+        direction LR
+        subgraph TRAITS["Operator traits — sim, trained, and future hardware share one Spec runner"]
+            direction TB
+            TO["trait OpticalBackend → O<br/>unitary_step(t, ψ) → ψ′<br/>energy(ψ) → ‖ψ‖₂"]:::trait
+            TP["trait Predictor → P<br/>embed: I — H ↪ 𝒵<br/>predict: P(z, a) · dist: d"]:::trait
+            TG["trait GraphBackend → M<br/>edit(G, z, policy, G★) → G′<br/>ok(G) → GraphOK"]:::trait
+            TD["trait Diffuser → D<br/>diffuse(G, z, policy) → z′"]:::trait
+        end
+        subgraph SIMS["Reference implementations (shipped)"]
+            direction TB
+            SO["SimOptical<br/>U_t = Π (Householder ∘ phase rot)<br/>one cached unitary O(N³) setup · O(N²)/step<br/>exact unitarity → Inv1 holds ideally"]:::sim
+            SP["SimPredictor (stub)<br/>I: scaled random orthogonal 2N → latent<br/>P: contractive PRED_SCALE=0.49<br/>per condition · d = Euclidean"]:::sim
+            ST["TrainedPredictor (Phase 3)<br/>load weights.json · ℙ2 projection at load<br/>Lip(P) ≤ ε/2 enforced · no decoder"]:::sim
+            SG["SimGraphBackend<br/>elementary edits (ℙ3): add/delete/relabel<br/>node · edge · policies: identity · one_edit · rebuild_gstar"]:::sim
+            SD["SimDiffuser<br/>identity · flip (z → −z)<br/>graph_conditioned: density-scaled noise"]:::sim
+            DATA["Spectral encoder (data.rs)<br/>byte window → unit-norm DFT spectrum<br/>optical-native · deterministic · invertible at window"]:::sim
+        end
+        FUT["Future (trait seams exist; not in v0.1.0)<br/>GPU Predictor · persistent graph store · photonic U hardware<br/>ℙ1 O(log N) is a substrate property — not evidenced by electronic sim"]:::future
+        TO --> SO
+        TP --> SP
+        TP --> ST
+        TG --> SG
+        TD --> SD
+    end
+
+    %% ============================ LEARNING LOOP ============================
+    subgraph LEARN["🧠 LEARNING LOOP — Phase 3 complete · train outside core · load into Predictor"]
+        direction LR
+        DS["aria dataset<br/>--input corpus.txt → aria-text-dataset-v1 (production)<br/>no --input → aria-optical-dataset-v1 (smoke only, warns)"]:::output
+        TRAIN["python/training/train_jepa.py (PyTorch)<br/>JEPA next-window embed · Lip reg + post-step projection<br/>quality gate: residual falls AND beats persistence baseline<br/>no decoder in the training module"]:::output
+        WTS["weights.json → TrainedPredictor<br/>held-out residual 0.887 → 0.362 vs persistence 0.645<br/>Lip(P) = 0.43 ≤ 0.49 (ℙ2 enforced)"]:::output
+        DS --> TRAIN --> WTS
+    end
+
+    %% ============================ OBSERVABILITY ============================
+    subgraph OBS["📈 OBSERVABILITY, PARITY & ACCEPTANCE"]
+        direction LR
+        TRACE["Trace export — JSONL (trace.rs)<br/>{t, action, res, energy, |G|, condition} + config header<br/>matched against TRACES.md: W1–W7 accept · X1–X5 reject"]:::output
+        TESTS["✔ v0.1.0 acceptance — 74 Rust tests + Python + WASM parity<br/>OPMD 1000-step · UNCHANGED clauses · energy ≤ 1e-10<br/>G2: Action enum has exactly 5 variants (CI)<br/>proptest Inv1–4 · trained backend · gates observe-only"]:::output
+        PERF["PERFORMANCE.md — measured throughput · scaling<br/>unitary O(N³) setup · Inv5–11 ~2% overhead<br/>Match graph clone O(T²) open issue"]:::output
+        TRACE -.->|"replayed in acceptance suite"| TESTS
+    end
+
+    %% ============================ FORMAL AUTHORITY ============================
+    subgraph FORMAL["📐 FORMAL AUTHORITY — source of truth (code is a refinement, not a fork)"]
+        direction LR
+        L01["Level 0–1 — CONTINUOUS_REFINEMENT.md<br/>Hilbert geometry of H = ℂᴺ · continuous<br/>prototypes of U, P, Match, Diff<br/>refine-vs-sample · epistemic labels"]:::doc
+        L2["Level 2 — FORMAL_SPEC · SAFETY · TRACES<br/>𝔸1–4 · ℙ1–3 · 𝐋1–3 · 𝐓1–2 · 𝐂1–8<br/>Inv1–4 jointly inductive under Next<br/>Inv5–11 doc-candidate gates only — refuse Spec enlargement"]:::doc
+        L3["Level 3 — Implementation (crates/ · python/ · www/)<br/>stack: Rust core + Python ML + TLA⁺<br/>reference engine · Python bindings · WASM demo"]:::doc
+        subgraph TLASPEC["TLA⁺ machine Spec (spec/)"]
+            direction TB
+            TLAM["Aria.tla → AriaMC.tla (finite instance)<br/>→ AriaInstance.tla / .cfg (TLC entry point)"]:::tla
+            TLC["✓ TLC model check<br/>36,049 states · 2,616 distinct<br/>Inv1–4 held · t ≤ 3"]:::tla
+            TLAM --> TLC
+        end
+        L01 --> L2
+        L2 --> L3
+        L2 --> TLASPEC
+    end
+
+    %% ============================ ROADMAP ============================
+    subgraph PHASES["DELIVERY ROADMAP — v0.1.0"]
+        direction LR
+        PH0["Phase 0 ✓ Spec freeze<br/>discrete Spec + TLA⁺ + Level 0–1 annex"]:::done
+        PH1["Phase 1 ✓ reference engine<br/>core + backends + CLI · OPMD 1k"]:::done
+        PH2["Phase 2 ✓ universal packaging<br/>PyO3 · WASM · shared runner · CI"]:::done
+        PH3["Phase 3 ✓ learning loop<br/>dataset · JEPA train · TrainedPredictor"]:::done
+        PH4["Phase 4 ✓ gates + scale<br/>Inv5–11 · bench · PERFORMANCE.md"]:::done
+        PHF["Future ⏳<br/>photonic U · GPU P · graph store"]:::todo
+        PH0 --> PH1 --> PH2 --> PH3 --> PH4 --> PHF
+    end
+
+    %% ============================ LEGEND ============================
+    subgraph LEGEND["Legend"]
+        direction LR
+        LA["caller"] ==>|"primary flow / Φ data cycle"| LB["engine"]
+        LC["policy"] -.->|"configures · implements · validates"| LD["target"]
+        LE["state"] -->|"checked after every apply"| LF["gate"]
+        LG["observer"] -.->|"monitors only — never mutates Next"| LH["trace"]
+    end
+
+    %% ============================ EDGES ============================
+    TITLE ~~~ USER
+
+    USER --> CLI
+    USER --> RLIB
+    USER --> PY
+    USER --> WASM
+
+    CLI ==>|"runner::run"| RUNNER
+    PY ==>|"runner::run"| RUNNER
+    WASM ==>|"runner::run"| RUNNER
+    RLIB ==>|"Engine::init / step_phi"| INIT
+    RUNNER ==>|"build Engine + ψ₀, G₀"| INIT
+
+    CFG -.->|"ε · K · policies · dims · gates"| SCHED
+    CFG -.->|"ε · latent_dim"| GATE
+    CFG -.->|"gates list"| OPGATES
+    CFG -.->|"--predictor"| ST
+
+    INIT ==> PSI
+
+    %% Scheduler selects actions (policy → Spec disjunction)
+    SCHED -.->|"next_action_budgeted"| PHI
+    COND -.->|"aₜ"| P
+    COND -.->|"aₜ"| D
+
+    %% Φ data cycle (𝐂4 preferred order O → P → M → D)
+    PSI ==>|"ψ"| O
+    O ==>|"ψ′ = U_t(ψ)"| PSI
+    PSI ==>|"I(ψ) — isometry H ↪ 𝒵 (𝔸2)"| P
+    P ==>|"z′"| ZV
+    ZV ==>|"G ⊕ z — latent node z_t"| M
+    M ==>|"G′ = ED(·, G★)"| GV
+    GV ==>|"graph-conditioned"| D
+    D ==>|"z′ = Diff_G(z) — feedback"| ZV
+    D ==>|"t′ = t+1"| TV
+
+    %% Residual + invariant gate
+    PSI --> RES
+    ZV --> RES
+    RES --> I2
+    RES -.->|"adaptive Match eligibility"| SCHED
+    PHI -->|"after every apply"| GATE
+    GATE -->|"✗ strict"| ERR
+    PHI -.->|"observe action stream"| OPGATES
+    OPGATES -.->|"GateBreach"| GATEBREACH
+
+    %% Backends plug into the engine as trait objects
+    BACKENDS -.->|"Engine&lt;O, P, G, D&gt; — trait objects"| CORE
+    WTS -.->|"swap Predictor without Spec change"| TP
+    DATA -.->|"fields for Init / training"| DS
+
+    %% Observability
+    PHI -->|"every step"| TRACE
+    GATEBREACH -.-> TRACE
+
+    %% Formal authority verifies the implementation
+    L2 -.->|"specifies"| CORE
+    TLC ==>|"machine-checked ✓"| CORE
+
+    %% Anchors for layout
+    BACKENDS ~~~ LEARN
+    LEARN ~~~ OBS
+    OBS ~~~ FORMAL
+    FORMAL ~~~ PHASES
+    PHASES ~~~ LEGEND
+
+    %% ============================ STYLES ============================
+    classDef title fill:#1f1f2e,stroke:#000,color:#fff,font-size:20px
+    classDef actor fill:#1f1f2e,stroke:#000,color:#fff
+    classDef cli fill:#aa7a4a,stroke:#6b4d2a,color:#fff
+    classDef cfg fill:#ece7f8,stroke:#8a84a8,color:#1f1f2e
+    classDef init fill:#4a4a8a,stroke:#2c2c54,color:#fff
+    classDef state fill:#e3e2f4,stroke:#4a4a8a,color:#1f1f2e
+    classDef action fill:#8a84c8,stroke:#4a4a8a,color:#fff
+    classDef stutter fill:#c9c7e3,stroke:#4a4a8a,color:#1f1f2e
+    classDef policy fill:#f4e9d8,stroke:#aa7a4a,color:#3a2a16
+    classDef inv fill:#dff0e2,stroke:#3a6a3a,color:#17301a
+    classDef err fill:#f6dcd8,stroke:#a33,color:#5c1a1a
+    classDef trait fill:#eef3ee,stroke:#3a6a3a,color:#17301a
+    classDef sim fill:#3a6a3a,stroke:#24421f,color:#fff
+    classDef future fill:#f2f2f2,stroke:#999,color:#444
+    classDef doc fill:#eef1f6,stroke:#55617a,color:#1c2434
+    classDef tla fill:#55617a,stroke:#2e374b,color:#fff
+    classDef output fill:#fff7e6,stroke:#aa7a4a,color:#3a2a16
+    classDef done fill:#dff0e2,stroke:#3a6a3a,color:#17301a
+    classDef todo fill:#f2f2f2,stroke:#999,color:#444
+    classDef gate fill:#e8f0f8,stroke:#3a5a7a,color:#1a2a3a
+
+    style SURFACES fill:#fdfaf5,stroke:#aa7a4a
+    style CORE fill:#f7f6fc,stroke:#4a4a8a,stroke-width:2px
+    style PHI fill:#efeefa,stroke:#4a4a8a
+    style GATE fill:#f0f7f1,stroke:#3a6a3a
+    style OPGATES fill:#eef4fa,stroke:#3a5a7a
+    style BACKENDS fill:#f4f8f4,stroke:#3a6a3a,stroke-width:2px
+    style TRAITS fill:#fbfdfb,stroke:#3a6a3a
+    style SIMS fill:#fbfdfb,stroke:#3a6a3a
+    style LEARN fill:#fff8f0,stroke:#aa7a4a
+    style OBS fill:#fffaf0,stroke:#aa7a4a
+    style FORMAL fill:#f4f6fa,stroke:#55617a,stroke-width:2px
+    style TLASPEC fill:#e9edf5,stroke:#55617a
+    style PHASES fill:#fafafa,stroke:#999
+    style LEGEND fill:#ffffff,stroke:#bbb

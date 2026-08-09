@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Aria — OPMD in the browser</title>
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        margin: 0; padding: 2rem;
+        font: 14px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+        background: #12121a; color: #e6e6f0;
+      }
+      h1 { font-size: 1.2rem; font-weight: 600; margin: 0 0 .25rem; }
+      p.sub { margin: 0 0 1.5rem; color: #8a8aa8; }
+      fieldset { border: 1px solid #2a2a3a; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+      legend { color: #8a8aa8; padding: 0 .5rem; }
+      label { display: inline-block; margin-right: 1rem; }
+      input, select { background: #1c1c28; color: inherit; border: 1px solid #2a2a3a;
+                      border-radius: 4px; padding: .25rem .5rem; font: inherit; width: 7rem; }
+      button { background: #4a4a8a; color: #fff; border: 0; border-radius: 4px;
+               padding: .5rem 1.25rem; font: inherit; cursor: pointer; }
+      button:disabled { opacity: .5; cursor: default; }
+      pre { background: #1c1c28; border: 1px solid #2a2a3a; border-radius: 6px;
+            padding: 1rem; overflow: auto; max-height: 22rem; }
+      .ok { color: #6ac46a; } .bad { color: #e06a6a; }
+    </style>
+  </head>
+  <body>
+    <h1>Aria — Ariadne Transformer</h1>
+    <p class="sub">
+      Φ = Diff ∘ Match ∘ P ∘ U, running in WebAssembly. Same engine as
+      <code>aria run</code> and <code>import aria</code>.
+    </p>
+
+    <fieldset>
+      <legend>config</legend>
+      <label>steps <input id="steps" type="number" value="1000" min="1" /></label>
+      <label>N <input id="n_modes" type="number" value="64" min="1" /></label>
+      <label>dim(Z) <input id="latent_dim" type="number" value="32" min="1" /></label>
+      <label>ε <input id="eps" type="number" value="1.0" step="0.1" /></label>
+      <label>
+        conditioning
+        <select id="condition">
+          <option value="token">token</option>
+          <option value="diffusion">diffusion</option>
+          <option value="world_model">world_model</option>
+        </select>
+      </label>
+    </fieldset>
+
+    <button id="run">Run OPMD</button>
+    <pre id="out">Loading WASM…</pre>
+
+    <script type="module">
+      import init, { run, runTraceJsonl, actionAlphabet } from "./pkg/aria_engine_wasm.js";
+
+      const out = document.getElementById("out");
+      const button = document.getElementById("run");
+
+      await init();
+      out.textContent = `Ready. Σ = {${actionAlphabet().join(", ")}}`;
+      button.disabled = false;
+
+      const num = (id) => Number(document.getElementById(id).value);
+
+      button.addEventListener("click", () => {
+        const steps = num("steps");
+        const config = {
+          n_modes: num("n_modes"),
+          latent_dim: num("latent_dim"),
+          eps: num("eps"),
+          stutter_k: 2,
+          schedule: "opmd",
+          condition: document.getElementById("condition").value,
+          match_policy: "identity",
+          diff_policy: "identity",
+          check_inv: ["inv1", "inv2", "inv3", "inv4"],
+          max_graph_size: 10000,
+          seed: 42,
+          strict: true,
+        };
+
+        const t0 = performance.now();
+        let summary, jsonl;
+        try {
+          summary = run(JSON.stringify(config), steps);
+          jsonl = runTraceJsonl(JSON.stringify(config), steps);
+        } catch (e) {
+          out.innerHTML = `<span class="bad">${e}</span>`;
+          return;
+        }
+        const ms = (performance.now() - t0).toFixed(1);
+
+        const verdict = summary.invariants_ok
+          ? '<span class="ok">Inv1 ✓ Inv2 ✓ Inv3 ✓ Inv4 ✓</span>'
+          : `<span class="bad">${summary.failures.join("\n")}</span>`;
+
+        const head = jsonl.split("\n").slice(0, 9).join("\n");
+
+        out.innerHTML =
+          `${verdict}\n\n` +
+          `steps    ${summary.steps}\n` +
+          `t        ${summary.t}\n` +
+          `|G|      ${summary.graph_size}\n` +
+          `energy   ${summary.energy}\n` +
+          `residual ${summary.residual}\n` +
+          `elapsed  ${ms} ms\n\n` +
+          `cycle    ${summary.action_sequence.slice(0, 40)}…\n\n` +
+          `trace (first rows)\n${head}`;
+      });
+    </script>
+  </body>
+</html>

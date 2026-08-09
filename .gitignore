@@ -1,0 +1,63 @@
+# --- OS ---
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# --- Editors / IDE ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.fleet/
+
+# --- TLA+ / TLC artifacts ---
+.tla/
+*.stamp
+states/
+MC.out
+*.log
+classes/
+tla2tools.jar
+
+# --- Python (future runtime) ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+venv/
+env/
+.python-version
+
+# --- Rust (future runtime) ---
+target/
+**/*.rs.bk
+
+# --- Node / WASM tooling ---
+node_modules/
+www/pkg/
+www/pkg-node/
+
+# --- Local env / secrets ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+reasonix.toml
+
+# --- Build / dist ---
+dist/
+build/
+*.tgz
+*.tar.gz
+
+# --- Developer-only docs (private build planning; not published) ---
+docs/PRD.md
+docs/BUILD_STATUS.md
+docs/OPERATING_SCHEDULE.md
+docs/old-ref-prompt.md/
