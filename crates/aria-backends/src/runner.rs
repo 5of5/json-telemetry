@@ -16,6 +16,7 @@ use aria_engine_core::trace::Trace;
 use num_complex::Complex64;
 use serde::{Deserialize, Serialize};
 
+use crate::spectral::SpectralReport;
 use crate::trained::TrainedPredictor;
 use crate::{SimDiffuser, SimGraphBackend, SimOptical, SimPredictor};
 
@@ -116,6 +117,11 @@ pub struct RunSummary {
     pub failures: Vec<String>,
     /// Optional Inv5–Inv11 operating gates. Empty `enabled` means none ran.
     pub gates: GateReport,
+    /// σ_max audit per weight matrix (plan WS1) — present iff the run used a
+    /// trained predictor. Under hard projection every value is ≤ its bound:
+    /// `embed ≤ 1.0`, conditioned matrices ≤ `lipschitz_bound` (𝕋4).
+    #[serde(default)]
+    pub spectral_report: Option<SpectralReport>,
 }
 
 /// Result of [`run`]: the summary plus the full trace.
@@ -149,6 +155,16 @@ pub fn run_with(
     let schedule = config.schedule.clone();
     let stutter_k = config.stutter_k;
 
+    // The Phase-1 σ audit travels on the summary; it must be sampled before
+    // the predictor moves into the engine.
+    let spectral_report = match &predictor {
+        RefPredictor::Trained(p) => Some(
+            p.spectral_report()
+                .map_err(|e| AriaError::Backend(e.to_string()))?,
+        ),
+        RefPredictor::Sim(_) => None,
+    };
+
     let engine = engine_with(config, predictor);
     let state = canonical_init(&engine, condition)?;
 
@@ -169,6 +185,7 @@ pub fn run_with(
         invariants_ok: report.all_ok(),
         failures: report.failures(),
         gates,
+        spectral_report,
     };
 
     Ok(RunOutcome {
@@ -214,11 +231,13 @@ fn validate_config(config: &AriaConfig, predictor: &RefPredictor) -> Result<(), 
                     config.latent_dim
                 )));
             }
-            if config.strict && p.max_residual_jump(1.0) > config.eps {
+            let jump = p
+                .max_residual_jump(1.0)
+                .map_err(|e| AriaError::Backend(e.to_string()))?;
+            if config.strict && jump > config.eps {
                 return Err(AriaError::Config(format!(
                     "trained predictor needs eps ≥ {:.4} (worst-case Inv2 jump), got eps = {}",
-                    p.max_residual_jump(1.0),
-                    config.eps
+                    jump, config.eps
                 )));
             }
         }

@@ -24,6 +24,10 @@ use aria_engine_core::engine::Predictor;
 use num_complex::Complex64;
 use serde::{Deserialize, Serialize};
 
+use crate::spectral::{
+    power_iteration, project_spectral, SpectralError, SpectralReport, DEFAULT_ITERATIONS,
+};
+
 /// On-disk weight format written by `python/training/train_jepa.py`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PredictorWeights {
@@ -68,6 +72,8 @@ pub enum WeightsError {
     Json(#[from] serde_json::Error),
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
+    #[error("spectral projection failed: {0}")]
+    Spectral(#[from] SpectralError),
 }
 
 /// A `Predictor` backed by learned weights, with ℙ2 enforced at load time.
@@ -109,11 +115,11 @@ impl TrainedPredictor {
         check_shape("predict.world_model", &w.predict.world_model, w.latent_dim, w.latent_dim)?;
 
         // 𝔸2: I is an isometry, so ‖I‖ ≤ 1. Project if training drifted above it.
-        let embed = project_spectral(w.embed, 1.0);
+        let embed = project_spectral(w.embed, 1.0)?;
         // ℙ2: Lip(P) ≤ lipschitz_bound, enforced rather than trusted.
-        let token = project_spectral(w.predict.token, w.lipschitz_bound);
-        let diffusion = project_spectral(w.predict.diffusion, w.lipschitz_bound);
-        let world_model = project_spectral(w.predict.world_model, w.lipschitz_bound);
+        let token = project_spectral(w.predict.token, w.lipschitz_bound)?;
+        let diffusion = project_spectral(w.predict.diffusion, w.lipschitz_bound)?;
+        let world_model = project_spectral(w.predict.world_model, w.lipschitz_bound)?;
 
         Ok(TrainedPredictor {
             n_modes: w.n_modes,
@@ -141,16 +147,35 @@ impl TrainedPredictor {
     /// Worst-case residual jump across one action: `2·Lip(P)·‖I‖·‖ψ₀‖`.
     ///
     /// Inv2 holds for every schedule when `eps ≥ max_residual_jump(‖ψ₀‖)`.
-    pub fn max_residual_jump(&self, psi_norm: f64) -> f64 {
-        2.0 * self.lipschitz_bound * spectral_norm(&self.embed) * psi_norm
+    pub fn max_residual_jump(&self, psi_norm: f64) -> Result<f64, SpectralError> {
+        Ok(2.0
+            * self.lipschitz_bound
+            * power_iteration(&self.embed, DEFAULT_ITERATIONS)?
+            * psi_norm)
     }
 
     /// The largest measured Lipschitz constant across the conditioned matrices.
-    pub fn measured_lipschitz(&self) -> f64 {
-        [&self.token, &self.diffusion, &self.world_model]
+    pub fn measured_lipschitz(&self) -> Result<f64, SpectralError> {
+        let sigmas = [&self.token, &self.diffusion, &self.world_model]
             .into_iter()
-            .map(|m| spectral_norm(m))
-            .fold(0.0, f64::max)
+            .map(|m| power_iteration(m, DEFAULT_ITERATIONS))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(sigmas.into_iter().fold(0.0, f64::max))
+    }
+
+    /// σ_max per weight matrix — the Phase-1 audit surface (plan WS1).
+    ///
+    /// Under the load-time hard projection every reported value is ≤ its
+    /// bound: `embed ≤ 1.0` (𝔸2) and the three conditioned matrices ≤
+    /// `lipschitz_bound` (ℙ2) — ε = 0.0 in weight space (𝕋4). Surfaced by
+    /// `aria check --predictor` and the run summary.
+    pub fn spectral_report(&self) -> Result<SpectralReport, SpectralError> {
+        Ok(SpectralReport {
+            embed: power_iteration(&self.embed, DEFAULT_ITERATIONS)?,
+            token: power_iteration(&self.token, DEFAULT_ITERATIONS)?,
+            diffusion: power_iteration(&self.diffusion, DEFAULT_ITERATIONS)?,
+            world_model: power_iteration(&self.world_model, DEFAULT_ITERATIONS)?,
+        })
     }
 
     fn matrix_for(&self, a: Condition) -> &Vec<Vec<f64>> {
@@ -212,59 +237,6 @@ fn mat_vec(m: &[Vec<f64>], x: &[f64]) -> Vec<f64> {
         .collect()
 }
 
-/// Largest singular value, by power iteration on MᵀM.
-pub fn spectral_norm(m: &[Vec<f64>]) -> f64 {
-    if m.is_empty() || m[0].is_empty() {
-        return 0.0;
-    }
-    let cols = m[0].len();
-    // Deterministic start vector; any vector not orthogonal to the top
-    // singular direction converges, and a constant vector rarely is.
-    let mut v = vec![1.0 / (cols as f64).sqrt(); cols];
-    let mut sigma = 0.0;
-
-    for _ in 0..128 {
-        // w = M v ; v' = Mᵀ w
-        let w = mat_vec(m, &v);
-        let mut next = vec![0.0; cols];
-        for (row, wi) in m.iter().zip(&w) {
-            for (acc, a) in next.iter_mut().zip(row) {
-                *acc += a * wi;
-            }
-        }
-        let norm = next.iter().map(|x| x * x).sum::<f64>().sqrt();
-        if norm <= 1e-300 {
-            return 0.0;
-        }
-        for x in &mut next {
-            *x /= norm;
-        }
-        let next_sigma = norm.sqrt();
-        if (next_sigma - sigma).abs() <= 1e-12 * next_sigma.max(1.0) {
-            return next_sigma;
-        }
-        sigma = next_sigma;
-        v = next;
-    }
-    sigma
-}
-
-/// Scale a matrix so its spectral norm is at most `bound`. A matrix already
-/// within the bound is returned unchanged.
-pub fn project_spectral(mut m: Vec<Vec<f64>>, bound: f64) -> Vec<Vec<f64>> {
-    let sigma = spectral_norm(&m);
-    if sigma <= bound || sigma == 0.0 {
-        return m;
-    }
-    let scale = bound / sigma;
-    for row in &mut m {
-        for v in row {
-            *v *= scale;
-        }
-    }
-    m
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -300,7 +272,7 @@ mod tests {
 
     #[test]
     fn spectral_norm_of_identity_is_one() {
-        assert!((spectral_norm(&identity(6)) - 1.0).abs() < 1e-9);
+        assert!((power_iteration(&identity(6), DEFAULT_ITERATIONS).unwrap() - 1.0).abs() < 1e-12);
     }
 
     #[test]
@@ -309,31 +281,50 @@ mod tests {
             .into_iter()
             .map(|r| r.into_iter().map(|v| v * 3.5).collect())
             .collect();
-        assert!((spectral_norm(&m) - 3.5).abs() < 1e-9);
+        assert!((power_iteration(&m, DEFAULT_ITERATIONS).unwrap() - 3.5).abs() < 1e-12);
     }
 
     #[test]
     fn loader_projects_an_over_lipschitz_checkpoint() {
         // Training produced Lip(P) = 5.0 but the bound is 0.49.
         let p = TrainedPredictor::from_weights(weights(8, 8, 5.0, 0.49)).unwrap();
-        assert!(
-            p.measured_lipschitz() <= 0.49 + 1e-9,
-            "loader must enforce P2, got {}",
-            p.measured_lipschitz()
-        );
+        let lip = p.measured_lipschitz().unwrap();
+        assert!(lip <= 0.49 + 1e-12, "loader must enforce P2, got {lip}");
     }
 
     #[test]
     fn loader_leaves_a_compliant_checkpoint_alone() {
         let p = TrainedPredictor::from_weights(weights(8, 8, 0.25, 0.49)).unwrap();
-        assert!((p.measured_lipschitz() - 0.25).abs() < 1e-9);
+        assert!((p.measured_lipschitz().unwrap() - 0.25).abs() < 1e-12);
     }
 
     #[test]
     fn max_residual_jump_bounds_eps() {
         let p = TrainedPredictor::from_weights(weights(8, 8, 0.49, 0.49)).unwrap();
         // ‖ψ₀‖ = 1 ⇒ jump ≤ 2·0.49 = 0.98 ≤ ε = 1.0.
-        assert!(p.max_residual_jump(1.0) <= 1.0);
+        assert!(p.max_residual_jump(1.0).unwrap() <= 1.0);
+    }
+
+    #[test]
+    fn projection_is_entry_exact_on_the_cyclic_fixture() {
+        // The migration fixture: σ(4·I) = 4 exactly under any start vector,
+        // so the WS1 estimator must scale 4·I to 0.49 entry-exactly — the
+        // same weights the pre-WS1 loader produced (observable behavior
+        // stays identical on this fixture, plan WS1 tests-at-risk).
+        let p = TrainedPredictor::from_weights(weights(8, 8, 4.0, 0.49)).unwrap();
+        let report = p.spectral_report().unwrap();
+        for m in [&p.token, &p.diffusion, &p.world_model] {
+            for (i, row) in m.iter().enumerate() {
+                for (j, v) in row.iter().enumerate() {
+                    let want = if i == j { 0.49 } else { 0.0 };
+                    assert!((v - want).abs() < 1e-12, "entry [{i}][{j}] = {v}");
+                }
+            }
+        }
+        assert!((report.token - 0.49).abs() < 1e-12);
+        assert!((report.diffusion - 0.49).abs() < 1e-12);
+        assert!((report.world_model - 0.49).abs() < 1e-12);
+        assert!((report.embed - 1.0).abs() < 1e-12);
     }
 
     #[test]

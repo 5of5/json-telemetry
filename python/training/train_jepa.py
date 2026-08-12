@@ -63,14 +63,78 @@ def load_dataset(path: pathlib.Path) -> tuple[torch.Tensor, int]:
 
 
 def spectral_norm(matrix: torch.Tensor) -> torch.Tensor:
-    """Largest singular value of a 2-D tensor."""
+    """Largest singular value of a 2-D tensor (exact, for diagnostics only).
+
+    The *enforced* quantity is the seeded power-iteration estimate below —
+    the same one the Rust loader uses (plan WS1) — so training and loading
+    agree on what the projection enforces.
+    """
     return torch.linalg.matrix_norm(matrix, ord=2)
+
+
+# ── Cross-language spectral contract ─────────────────────────────────────────
+# Line-by-line identical to crates/aria-backends/src/spectral.rs: same seeded
+# LCG start vector, same alternating u/v sweeps (𝕋4), same r default. The LCG
+# is fixed-point 64-bit arithmetic, so start vectors are bit-identical in
+# Rust and Python.
+POWER_ITERATION_ITERATIONS = 16  # must match spectral.rs DEFAULT_ITERATIONS
+POWER_ITERATION_SEED = 0x9E3779B97F4A7C15  # must match spectral.rs START_VECTOR_SEED
+
+
+def _next_lcg(x: int) -> int:
+    """x_{n+1} = 6364136223846793005·x + 1442695040888963407 (mod 2⁶⁴)."""
+    return (x * 6364136223846793005 + 1442695040888963407) & 0xFFFFFFFFFFFFFFFF
+
+
+def _seeded_unit_vector(n: int) -> torch.Tensor:
+    """The seeded LCG stream mapped into [−1, 1)ⁿ, normalized."""
+    x = POWER_ITERATION_SEED
+    values = []
+    for _ in range(n):
+        x = _next_lcg(x)
+        values.append(((x >> 11) * (1.0 / 9007199254740992.0)) - 1.0)
+    v = torch.tensor(values, dtype=torch.float64)
+    norm = v.norm()
+    if norm > 0.0:
+        v = v / norm
+    return v
+
+
+def power_iteration_sigma(matrix: torch.Tensor, r: int = POWER_ITERATION_ITERATIONS) -> float:
+    """σ_max(W) by r alternating singular-vector sweeps (𝕋4): v ← Wᵀu/‖·‖,
+    u ← Wv/‖·‖, σ = ‖Wv‖₂. r must lie in [2, 16] (spec §0.4)."""
+    if not 2 <= r <= 16:
+        raise ValueError(f"power iteration count r = {r} violates the spec domain: r ∈ [2, 16]")
+    if matrix.numel() == 0:
+        return 0.0
+    rows, _cols = matrix.shape
+
+    u = _seeded_unit_vector(rows)
+    sigma = 0.0
+    for _ in range(r):
+        v = matrix.t() @ u  # v = Wᵀ u
+        v_norm = float(v.norm())
+        if v_norm <= 1e-300:
+            return 0.0
+        v = v / v_norm
+
+        u_next = matrix @ v  # u = W v
+        sigma = float(u_next.norm())  # σ = ‖W v‖₂ = uᵀWv
+        if sigma <= 1e-300:
+            return 0.0
+        u = u_next / sigma
+    return sigma
 
 
 @torch.no_grad()
 def project_spectral(matrix: torch.Tensor, bound: float) -> None:
-    """Scale `matrix` in place so its spectral norm is at most `bound`."""
-    sigma = spectral_norm(matrix)
+    """Scale `matrix` in place so its spectral norm is at most `bound`.
+
+    𝕋4's `W ← W / max(1.0, σ_max)` generalized to radius `bound`, with σ_max
+    estimated by the same seeded power iteration the Rust loader enforces ℙ2
+    with (plan WS1) — training and loading project to the same quantity.
+    """
+    sigma = power_iteration_sigma(matrix)
     if sigma > bound:
         matrix.mul_(bound / sigma)
 

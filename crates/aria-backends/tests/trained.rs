@@ -55,7 +55,7 @@ fn config() -> AriaConfig {
 #[test]
 fn trained_predictor_runs_1000_opmd_steps_green() {
     let trained = TrainedPredictor::from_weights(checkpoint(0.49, 0.49)).unwrap();
-    assert!(trained.max_residual_jump(1.0) <= config().eps);
+    assert!(trained.max_residual_jump(1.0).unwrap() <= config().eps);
 
     let outcome = runner::run_with(config(), 1000, RefPredictor::Trained(trained)).unwrap();
 
@@ -87,7 +87,7 @@ fn an_over_lipschitz_checkpoint_is_projected_not_trusted() {
     // Training claims Lip(P) = 4.0 while declaring a 0.49 bound. The loader
     // must clamp it, and the run must still be green.
     let trained = TrainedPredictor::from_weights(checkpoint(4.0, 0.49)).unwrap();
-    assert!(trained.measured_lipschitz() <= 0.49 + 1e-9);
+    assert!(trained.measured_lipschitz().unwrap() <= 0.49 + 1e-12);
 
     let outcome = runner::run_with(config(), 400, RefPredictor::Trained(trained)).unwrap();
     assert!(
@@ -111,4 +111,48 @@ fn all_conditionings_share_the_one_architecture() {
             outcome.summary.failures
         );
     }
+}
+
+#[test]
+fn sigma_audit_holds_across_a_10k_step_run() {
+    // Phase 1 acceptance: σ_max(W) ≤ 1.0 — ε = 0.0 in weight space under the
+    // hard projection (𝕋4) — audited across a T ≥ 10⁴ run with the trained
+    // backend. Weights are static during a run, so the audit samples the
+    // estimator before the run, on the summary (per-run), and after; every
+    // sample must sit at or below 1.0.
+    let predictor = TrainedPredictor::from_weights(checkpoint(4.0, 0.49)).unwrap();
+    let pre = predictor.spectral_report().unwrap();
+    for (name, sigma) in [
+        ("embed", pre.embed),
+        ("token", pre.token),
+        ("diffusion", pre.diffusion),
+        ("world_model", pre.world_model),
+    ] {
+        assert!(sigma <= 1.0 + 1e-12, "pre-run σ({name}) = {sigma}");
+    }
+
+    let outcome = runner::run_with(config(), 10_000, RefPredictor::Trained(predictor)).unwrap();
+    assert!(outcome.summary.invariants_ok, "{:?}", outcome.summary.failures);
+    assert_eq!(outcome.summary.t, 2500);
+    assert_eq!(outcome.summary.action_sequence, "OPMD".repeat(2500));
+
+    // The summary carries the audit — the gate is measurable, not assumed.
+    let post = outcome
+        .summary
+        .spectral_report
+        .expect("trained runs must carry the σ audit");
+    for (name, sigma) in [
+        ("embed", post.embed),
+        ("token", post.token),
+        ("diffusion", post.diffusion),
+        ("world_model", post.world_model),
+    ] {
+        assert!(sigma <= 1.0 + 1e-12, "post-run σ({name}) = {sigma}");
+    }
+    // The loaded matrices satisfy their declared bound, not just 1.0:
+    // σ(embed) ≤ 1.0 (𝔸2), σ(conditioned) ≤ 0.49 (ℙ2).
+    assert!((post.token - 0.49).abs() < 1e-12, "σ(token) = {}", post.token);
+    assert!((post.diffusion - 0.49).abs() < 1e-12);
+    assert!((post.world_model - 0.49).abs() < 1e-12);
+    assert!((post.embed - 1.0).abs() < 1e-12, "σ(embed) = {}", post.embed);
 }

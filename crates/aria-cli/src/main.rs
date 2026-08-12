@@ -133,6 +133,11 @@ enum Commands {
         /// Latent dimension
         #[arg(long)]
         latent_dim: Option<usize>,
+
+        /// Trained checkpoint: load it, print the σ_max audit, and check
+        /// against the trained backend that produced the state (plan WS1)
+        #[arg(long)]
+        predictor: Option<PathBuf>,
     },
 
     /// Measure Φ-cycle throughput across sizes (Phase 4 performance notes)
@@ -269,10 +274,11 @@ fn real_main(cli: Cli) -> Result<(), String> {
                     // The checkpoint fixes N and dim(Z); adopt them.
                     config.n_modes = trained.n_modes();
                     config.latent_dim = trained.latent_dim();
+                    let lip = trained.measured_lipschitz().map_err(|e| e.to_string())?;
                     eprintln!(
                         "Predictor: trained weights from {} (Lip(P) = {:.4})",
                         path.display(),
-                        trained.measured_lipschitz()
+                        lip
                     );
                     RefPredictor::Trained(trained)
                 }
@@ -296,6 +302,15 @@ fn real_main(cli: Cli) -> Result<(), String> {
                 s.residual,
                 if s.invariants_ok { "OK" } else { "FAILED" }
             );
+
+            // Phase 1 audit (plan WS1): σ_max per weight matrix, present iff
+            // the run used the trained backend.
+            if let Some(r) = &s.spectral_report {
+                eprintln!(
+                    "σ_max audit: token={:.9} diffusion={:.9} world_model={:.9} embed={:.9}",
+                    r.token, r.diffusion, r.world_model, r.embed
+                );
+            }
 
             if !s.invariants_ok {
                 for f in &s.failures {
@@ -380,6 +395,7 @@ fn real_main(cli: Cli) -> Result<(), String> {
             state,
             condition,
             latent_dim,
+            predictor,
         } => {
             let mut config = base;
             if let Some(v) = latent_dim {
@@ -398,7 +414,26 @@ fn real_main(cli: Cli) -> Result<(), String> {
             // `aria check` never calls Engine::init; enforce the 𝒮 bounds
             // here for the same reason as `step` (plan WS0).
             config.validate().map_err(|e| e.to_string())?;
-            let engine = sim_engine(config);
+
+            let engine = match predictor {
+                Some(ref path) => {
+                    let trained = TrainedPredictor::from_file(path)
+                        .map_err(|e| format!("failed to load {}: {}", path.display(), e))?;
+                    config.n_modes = trained.n_modes();
+                    config.latent_dim = trained.latent_dim();
+                    let report = trained.spectral_report().map_err(|e| e.to_string())?;
+                    println!(
+                        "σ_max audit ({}) — token={:.9} diffusion={:.9} world_model={:.9} embed={:.9}",
+                        path.display(),
+                        report.token,
+                        report.diffusion,
+                        report.world_model,
+                        report.embed
+                    );
+                    runner::engine_with(config, RefPredictor::Trained(trained))
+                }
+                None => sim_engine(config),
+            };
             let report = engine.check(&state, cond);
             if report.all_ok() {
                 println!("All invariants hold: Inv1 ✓ Inv2 ✓ Inv3 ✓ Inv4 ✓");

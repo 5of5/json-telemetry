@@ -12,6 +12,7 @@ pub mod graph;
 pub mod optical;
 pub mod predictor;
 pub mod runner;
+pub mod spectral;
 pub mod trained;
 
 pub use data::{dataset_from_bytes, dataset_from_file, encode_corpus, encode_window, FieldDataset};
@@ -21,6 +22,9 @@ pub use optical::SimOptical;
 pub use predictor::SimPredictor;
 pub use runner::{
     engine_with, run, run_with, sim_engine, RefPredictor, RunOutcome, RunSummary, SimEngine,
+};
+pub use spectral::{
+    project_spectral, power_iteration, Matrix, SpectralError, SpectralReport, DEFAULT_ITERATIONS,
 };
 pub use trained::{PredictorWeights, TrainedPredictor, WeightsError};
 

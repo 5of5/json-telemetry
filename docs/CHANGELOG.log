@@ -391,3 +391,110 @@ Labels: MILESTONE | GOAL | TASK | QUESTION | DOCS | INSIGHT
                     paths touched this WS: docs/BUILD_STATUS.md (v0.2.0 WS0
                     section + decoder-gate rows). Next session: WS1 —
                     spectral.rs power-iteration primitives (G-v0.2.0-P1).
+01:05 | TASK      | Session open — WS1 (Spec Phase 1: high-assurance spectral
+                    primitives, Inv2, ε = 0.0 weight-space; G-v0.2.0-P1).
+                    Planned change-set: (1) crates/aria-backends/src/
+                    spectral.rs (new): power_iteration(w, r) with r ∈ [2,16]
+                    validated and seeded start vectors; project_spectral(w,
+                    bound) = W ← W / max(1, σ_max) exactly as 𝕋4. (2)
+                    trained.rs migration: replace the ad-hoc load-time
+                    projection with spectral.rs; TrainedPredictor::
+                    spectral_report() exposes σ_max per conditioning matrix;
+                    surfaced via aria check + the trace summary. (3)
+                    python/training/train_jepa.py: keep the post-step hard
+                    projection but route it through an identical power-
+                    iteration (same r default) so Rust/Python enforce the
+                    same quantity; cross-language agreement test (Rust σ
+                    within 1e-6 of torch.linalg.matrix_norm(ord=2)).
+                    Driving toward the Phase 1 acceptance gate: σ_max(W)
+                    ≤ 1.0 audited across a T ≥ 10⁴ trained-backend run,
+                    unit + cross-language tests green, plus the plan §4
+                    battery (cargo test -p aria-engine-backends, pytest).
+01:21 | TASK      | WS1 landing — spectral.rs. New module
+                    crates/aria-backends/src/spectral.rs: power_iteration(w, r)
+                    implements 𝕋4's alternating singular-vector sweeps
+                    (v ← Wᵀu/‖Wᵀu‖₂, u ← Wv/‖Wv‖₂, σ = ‖Wv‖₂) with r ∈ [2,16]
+                    validated (SpectralError::Iterations, reject-not-panic) and
+                    a seeded start vector from a fixed 64-bit LCG (seed
+                    0x9E3779B97F4A7C15, MMIX constants) — deterministic, no OS
+                    entropy, WASM-safe, and bit-identical to the generator in
+                    python/training/train_jepa.py. project_spectral(w, bound)
+                    = W·min(1, bound/σ̂) — 𝕋4's W ← W/max(1.0, σ_max) exactly
+                    at bound = 1.0, generalized to the ε/2 ball radius.
+                    SpectralReport { embed, token, diffusion, world_model }.
+                    11 unit tests: r-domain rejection table, exactness on
+                    identity/cyclic, gap-matrix accuracy, 𝕋4 scaling (5·I → I
+                    entry-exact), compliant-unchanged, zero matrix,
+                    non-square isometry shape, determinism, empty matrix.
+01:21 | TASK      | WS1 landing — trained.rs migration. The ad-hoc 128-iteration
+                    spectral_norm/project_spectral in trained.rs are deleted;
+                    the loader routes through spectral.rs (same projection
+                    semantics, estimate now the spec-defined quantity).
+                    measured_lipschitz()/max_residual_jump()/new
+                    spectral_report() return Result (honest error typing, no
+                    expect/panic); WeightsError gains Spectral(#[from]).
+                    runner.rs: RunSummary gains spectral_report:
+                    Option<SpectralReport> (serde default; populated only for
+                    the trained backend); validate_config handles the Result
+                    jump. tests/trained.rs: fixture weight-equality test
+                    (4·I → 0.49·I entry-exact — the plan's "same loaded
+                    weights on a fixture" requirement) and the Phase 1 gate
+                    test sigma_audit_holds_across_a_10k_step_run (T = 10⁴,
+                    σ sampled pre/post and on the summary: embed = 1.0,
+                    token = diffusion = world_model = 0.49 exactly, every
+                    sample ≤ 1.0).
+01:21 | TASK      | WS1 landing — surfaces. CLI: `aria run --predictor` prints
+                    the σ_max audit line; `aria check` gains
+                    `--predictor <path>` (loads the trained backend, prints
+                    the per-matrix audit, checks the state with that backend).
+                    Smoke-verified end-to-end on a hand-crafted fixed-point
+                    state (residual 0 under P = 0.49·I): audit printed,
+                    Inv1–4 hold. aria-py: new pyfunction
+                    aria.power_iteration(matrix, r=None) with r defaulting to
+                    the same DEFAULT_ITERATIONS = 16, for the cross-language
+                    tests. python/training/train_jepa.py: project_spectral
+                    now routes through power_iteration_sigma — a line-by-line
+                    identical implementation (same LCG start vector, same
+                    sweeps, same r default), so training and loading enforce
+                    the same quantity; the exact torch matrix_norm stays for
+                    soft-penalty diagnostics only.
+01:21 | INSIGHT   | Power-iteration accuracy measured on seeded gap matrices
+                    (d = 16, σ₁ = 1.0): δ_σ at gap 0.5 is 4.804e-2 (r = 2),
+                    2.092e-4 (r = 4), 3.194e-9 (r = 8), 0.0 (r = 16); at
+                    r = 16 across gaps: gap 0.3 → 0.0, 0.5 → 0.0, 0.7 →
+                    5.806e-10, 0.9 → 1.249e-3. The estimate converges from
+                    below (Rayleigh ≤ σ_max), so the gap-0.9 residual of
+                    ~1e-3 is exactly the under-enforcement the spec's ℙ4 δ_σ
+                    tolerance exists for — and why the enforced quantity is
+                    defined as the shared estimate, not the exact σ. The
+                    cross-language agreement test (Rust σ and Python σ vs
+                    torch.linalg.matrix_norm on seeded gap matrices,
+                    d ∈ {8,16,32} × 3 seeds) passed at < 1e-6 everywhere:
+                    6/6 green.
+01:21 | DOCS      | docs/BUILD_STATUS.md — v0.2.0 section gains the WS1 line
+                    (spectral.rs + σ-audit surfaces + cross-language
+                    agreement test).
+01:21 | GOAL-close | G-v0.2.0-P1 — Spec Phase 1 (high-assurance spectral
+                    primitives, Inv2 with ε = 0.0 in weight space) is CLOSED.
+                    Phase 1 gate green: σ_max(W) ≤ 1.0 audited across a
+                    T = 10⁴ trained-backend run (every sample ≤ 1.0; loaded
+                    matrices at their declared bounds: embed = 1.0,
+                    conditioned = 0.49 exactly); unit table + cross-language
+                    agreement (Rust/Python/torch within 1e-6) green. Battery
+                    this session: 106 Rust tests (94 baseline + 12 new) ·
+                    clippy --workspace --all-targets -D warnings clean · G2
+                    OK · decoder gate OK · release 1000-step OPMD
+                    invariants=OK · WASM parity |Δ| = 5.662e-15 unchanged ·
+                    python -m pytest 6/6 (new agreement tests; test_parity/
+                    test_training sources still absent — Q-2026-08-13-3).
+01:26 | TASK      | WS1 COMPLETE — G-v0.2.0-P1 acceptance gate green from
+                    clean battery runs this session (plan §4: cargo test -p
+                    aria-engine-backends 64/64 incl. the T = 10⁴ σ-audit,
+                    python -m pytest python/tests 6/6; plus the full battery
+                    above). Committed as one WS: 1ab2b6d (9 files, +350/−82;
+                    new crates/aria-backends/src/spectral.rs). Gitignored
+                    paths touched this WS: python/tests/test_spectral_agreement.py
+                    (new — the cross-language agreement suite),
+                    docs/BUILD_STATUS.md (WS1 line). Next session: WS2 —
+                    FftPlannerScalar + eps_energy (G-v0.2.0-P2); note
+                    Q-2026-08-13-3 still open (python/tests sources absent).

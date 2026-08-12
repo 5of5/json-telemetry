@@ -10,6 +10,7 @@
 #![allow(clippy::useless_conversion)]
 
 use aria_engine_backends::runner::{self, canonical_init, sim_engine, SimEngine};
+use aria_engine_backends::DEFAULT_ITERATIONS;
 use aria_engine_core::action::Action;
 use aria_engine_core::condition::Condition;
 use aria_engine_core::config::AriaConfig;
@@ -367,6 +368,19 @@ fn actions() -> Vec<String> {
     Action::ALL.iter().map(|a| format!("{a:?}")).collect()
 }
 
+/// σ_max(W) by the same seeded power iteration the trained-backend loader
+/// uses to enforce ℙ2 (plan WS1, 𝕋4). `r` defaults to the same iteration
+/// count as the Rust loader — the cross-language agreement tests call this.
+#[pyfunction]
+#[pyo3(signature = (matrix, r = None))]
+// PyO3 extracts owned values from Python arguments; a &Vec<Vec<f64>> would
+// force extra borrow plumbing for no gain in an FFI boundary.
+#[allow(clippy::needless_pass_by_value)]
+fn power_iteration(matrix: Vec<Vec<f64>>, r: Option<usize>) -> PyResult<f64> {
+    let r = r.unwrap_or(DEFAULT_ITERATIONS);
+    aria_engine_backends::spectral::power_iteration(&matrix, r).map_err(value_err)
+}
+
 #[pymodule]
 fn aria(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyConfig>()?;
@@ -376,6 +390,7 @@ fn aria(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(run, m)?)?;
     m.add_function(wrap_pyfunction!(run_trace_jsonl, m)?)?;
     m.add_function(wrap_pyfunction!(actions, m)?)?;
+    m.add_function(wrap_pyfunction!(power_iteration, m)?)?;
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     Ok(())
 }
