@@ -5,7 +5,7 @@
 Thumbs.db
 ehthumbs.db
 desktop.ini
-
+The_Aria_Protocol_Graph-JEPA-Foundational-Spec.pdf
 # --- Editors / IDE ---
 .vscode/
 .idea/
@@ -13,6 +13,14 @@ desktop.ini
 *.swo
 *~
 .fleet/
+.devin
+.github/workflows
+assets/aria.mmd
+assets/aria-video.mp4
+assets/aria-logo-transparent.png
+assets/aria-v0.1.0.mmd
+plan_v0.2.0.md
+tests
 
 # --- TLA+ / TLC artifacts ---
 .tla/
@@ -57,7 +65,11 @@ build/
 *.tar.gz
 
 # --- Developer-only docs (private build planning; not published) ---
+docs
 docs/PRD.md
 docs/BUILD_STATUS.md
 docs/OPERATING_SCHEDULE.md
 docs/old-ref-prompt.md/
+spec
+Cargo.lock
+python/tests
