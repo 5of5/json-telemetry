@@ -67,15 +67,9 @@ build/
 *.tar.gz
 
 # --- Developer-only docs (private build planning; not published) ---
-# docs/* (not bare `docs`) so the two negations below can re-include the
-# execution loop's state anchors; everything else in docs/ stays ignored.
-docs/*
-!docs/CHANGELOG.log
-!docs/evidence/
-docs/PRD.md
-docs/BUILD_STATUS.md
-docs/OPERATING_SCHEDULE.md
-docs/old-ref-prompt.md/
+# All docs/ and spec/ are private — CHANGELOG, evidence receipts, formal spec,
+# safety proofs, planning docs. None are published to GitHub.
+docs
 spec
 python/tests
 

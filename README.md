@@ -228,17 +228,17 @@ aria/
     tests/                    parity + training tests
   www/                        browser demo + Node parity harness
   scripts/                    Σ alphabet gate, wasm build
-  docs/                       Formal specification + evidence (see Documentation above)
-    evidence/                 Slim JSON receipts (v1–v3)
-  spec/                       TLA⁺ machine Spec (see Documentation above)
+  docs/                       Formal specification (private — not published)
+  spec/                       TLA⁺ machine Spec (private — not published)
 ```
 
 ---
 
 ## Documentation
 
-The formal specification, safety proofs, TLA⁺ model, rationale, performance data, and
-trace families live in `docs/` and `spec/` — available in the repository clone.
+The formal specification, safety proofs, TLA⁺ model, rationale, performance data,
+trace families, and living changelog live in `docs/` and `spec/`. These are
+maintained locally and not published to GitHub — clone the repository to read them.
 
 - `docs/FORMAL_SPEC.md` — discrete Spec: axioms 𝔸1–4, postulates ℙ1–3, corollaries 𝐂1–8
 - `docs/SAFETY.md` — Inv1–4 inductive safety arguments
@@ -246,7 +246,7 @@ trace families live in `docs/` and `spec/` — available in the repository clone
 - `docs/RATIONALE.md` — ontology: why not a Softmax residual-stream transformer
 - `docs/TRACES.md` — W1–W7 accept, X1–X5 reject trajectory families
 - `docs/PERFORMANCE.md` — measured throughput, scaling, simulation limits
-- `docs/CHANGELOG.log` — living history and rate-of-change record
+- `docs/CHANGELOG.log` — living history and rate-of-change record (private)
 - `spec/Aria.tla` — full discrete Spec (TLA⁺)
 - `spec/AriaMC.tla` — finite model instance for TLC
 - `spec/AriaInstance.tla` / `AriaInstance.cfg` — TLC entry point
