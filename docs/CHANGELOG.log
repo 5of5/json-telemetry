@@ -1,0 +1,257 @@
+ARIA — CHANGELOG.log
+Living history and rate-of-change record for the Aria Transformer.
+Maintained by the aria skill (.devin/skills/aria/SKILL.md §3). Append-only.
+Labels: MILESTONE | GOAL | TASK | QUESTION | DOCS | INSIGHT
+
+================================================================================
+2026-08-12 (Wednesday)
+================================================================================
+21:41 | MILESTONE | aria skill v1 created at .devin/skills/aria/ — operational
+                    contract (OODA loop, 80/20 execution/architecture priority,
+                    confidence gate, hard locks) plus five seeded reference
+                    libraries: jepa-and-world-models, graphs-partitioning-
+                    retrieval, rust-wasm-python, tracn, internal-aria.
+21:41 | TASK      | Grounding pass completed: read The_Aria_Protocol_Graph-JEPA-
+                    Foundational-Spec.pdf (24 pp, spec v0.2.0) in full; read all
+                    docs/* authority files; mapped crates/, python/, spec/,
+                    assets/. Verified I-JEPA (arXiv:2301.08243) and Graph-JEPA
+                    (arXiv:2309.16014, TMLR) citations live.
+21:41 | DOCS      | docs/CHANGELOG.log initialized with format contract (this
+                    file). assets/aria.mmd noted as empty living master; v0.1.0
+                    snapshot remains at assets/aria-v0.1.0.mmd. aria.mmd is
+                    updated only on explicit request.
+21:41 | GOAL      | G-2026-08-12-A: Close spec-vs-repo delta #1 — replace the
+                    O(N²) Householder mat-vec in SimOptical with the O(N log N)
+                    FFT phase-mask unitary mandated for N ≥ 256 (spec §5.2, ℙ1),
+                    preserving Inv1 exactly and all parity tests green.
+                    Acceptance: cargo test --workspace green + bench shows
+                    sub-quadratic run scaling 256→1024.
+21:41 | GOAL      | G-2026-08-12-B: Close spec-vs-repo delta #2 — O(log |V|)
+                    experience-graph retrieval (HNSW) behind the existing
+                    GraphBackend seam, per spec §5.3 / ℙ5; required for
+                    |V| > 10³. Acceptance: retrieval latency measured < 250 µs
+                    at |V| = 10⁶ (spec Phase 3 criterion).
+21:41 | QUESTION  | Q-2026-08-12-1: The spec's winning condition requires
+                    T ≥ 10⁵-step trajectories with all Inv1–4 within tolerance;
+                    current evidence is 10³ steps. What is the cheapest
+                    long-horizon harness (CI-friendly) that certifies 10⁵ steps
+                    without O(T²) Match graph clones dominating runtime?
+21:41 | QUESTION  | Q-2026-08-12-2: Which METIS-style partitioning of ingested
+                    knowledge graphs (Cypher/JSON) yields context/target
+                    subgraph patches that best transfer to TRACN market-map
+                    topologies — and how is that measured with accuracy/brevity/
+                    clarity of the emitted maps?
+21:41 | QUESTION  | Q-2026-08-12-3: TRACN repos (github.com/5of5/*) are not
+                    anonymously fetchable. When can an authenticated sync run so
+                    tracn.md extraction queue items 1–4 (market-map taxonomies,
+                    API schemas, PCVC agent contract, rendering formats) can be
+                    filled with verified extracts?
+
+22:00 | MILESTONE | M-v0.2.0 declared: upgrade Aria 0.1.0 → 0.2.0 per
+                    The_Aria_Protocol_Graph-JEPA-Foundational-Spec.pdf (spec
+                    v0.2.0), bringing the transformer to research-grade
+                    intelligence. Sub-milestones map to the spec §7 roadmap:
+                    M1 high-assurance primitives (spectral kernels, zero-copy
+                    weights), M2 optical kernels + topological memory,
+                    M3 decoupled projections + multi-task optimization,
+                    M4 holistic validation (T ≥ 10⁵). Execution plan:
+                    plan_v0.2.0.md (repo root), to be coded by the aria skill.
+22:00 | TASK      | OODA Observe pass for v0.2.0 planning: read aria.mmd
+                    (empty; v0.1.0 snapshot authoritative), engine.rs,
+                    invariants.rs, state.rs, config.rs, graph.rs (core),
+                    optical.rs, trained.rs, runner.rs, train_jepa.py.
+                    Verified rustfft 6.4.1 (pure Rust, wasm_simd feature,
+                    crates.io 2025-09-18) and pure-Rust HNSW candidates
+                    (instant-distance, hnsw_rs) as deterministic/wasm-safe
+                    alternatives to C++ usearch. Reference library
+                    rust-wasm-python.md updated with findings.
+22:00 | TASK      | Review of open CHANGELOG tasks: G-2026-08-12-A (FFT
+                    O(N log N) optical kernel) absorbed into plan WS2;
+                    G-2026-08-12-B (O(log |V|) HNSW retrieval) absorbed into
+                    plan WS3. Both acceptance criteria carried over unchanged.
+22:00 | TASK      | Code-review findings feeding v0.2.0 optimizations:
+                    (1) engine.rs Match clones the graph twice per step
+                    (prev_g + g_with_z) → O(T²) long-run cost; fix via
+                    rollback journal / COW store (WS3).
+                    (2) train_jepa.py jepa_residual computes the target
+                    encode(psi_next) WITHOUT stop-gradient — spec §6.1 mandates
+                    StopGradient(E_θ(x_{t+1})); collapse pressure is currently
+                    masked only by orthonormal init + spectral projection (WS5).
+                    (3) invariants.rs check_inv1 hardcodes 1e-10 tolerance;
+                    spec §0.2 defines ε_E ∈ [1e-9,1e-6] with normalization
+                    kernel at 1e-7 — parametrize (WS2).
+                    (4) optical.rs SimOptical::energy uses uncompensated
+                    summation while state.rs field_energy is Neumaier-
+                    compensated — unify on the compensated path (WS2).
+                    (5) config.rs performs no 𝒮-domain validation (N power of
+                    two in [16,16384], 8 ≤ d ≤ 2N, K ≤ 4, τ ∈ (0,1], λ ∈ Δ³)
+                    — add validate() gate (WS0).
+                    (6) graph.rs uses String node ids + HashMap/HashSet —
+                    per-Match allocations and no vector index; typed enums
+                    (spec §5.3 NodeType/EdgeType) missing (WS3).
+                    (7) No readout heads exist anywhere (spec §5.1, 𝔸5);
+                    no BPE tokenizer; no safetensors loader (WS4).
+                    (8) Objective is 2-term (JEPA + spectral penalty); spec §6
+                    requires 4-term ℒ_total on Δ³ with ℒ_NLL and ℒ_Graph (WS5).
+22:00 | GOAL      | G-v0.2.0-P1 (spec Phase 1): hard spectral projection in
+                    Rust load path AND Python train loop with power iteration
+                    r ∈ [2,16]; weight-space bound σ_max(W) ≤ 1.0 holds with
+                    zero tolerance (ε = 0.0 under hard projection, spec §0.2)
+                    across a T ≥ 10⁴ run. Acceptance: projection unit tests +
+                    10⁴-step run green with σ_max audit ≤ 1.0.
+22:00 | GOAL      | G-v0.2.0-P2 (spec Phase 2): FFT phase-mask unitary
+                    (rustfft 6.4.1) as default OpticalBackend for N ≥ 256;
+                    Inv1 drift ≤ 1e-7; per-step cost O(N log N). Acceptance:
+                    `aria bench` 256→1024 run-time ratio ≈ 4–5× (not 16×);
+                    parity suite green (CLI ≡ Python bytes; WASM |Δ| ≤ 6e-15).
+                    Supersedes G-2026-08-12-A.
+22:00 | GOAL      | G-v0.2.0-P3 (spec Phase 3): typed experience graph
+                    (NodeType/EdgeType enums), u64 ids, transactional mutation
+                    without double clone, τ-threshold MergeNodes with EMA
+                    0.9/0.1, VectorIndex seam with HNSW. Acceptance: Inv3 zero
+                    faults; retrieval < 250 µs at |V| = 10⁶ (native bench);
+                    measured |V| growth sub-linear (β ≤ 1) on doc corpus.
+                    Supersedes G-2026-08-12-B.
+22:00 | GOAL      | G-v0.2.0-P4 (spec Phase 4): decoupled readout heads
+                    (discrete BPE 256 ≤ |V_o| ≤ 128000 + continuous d_a ≤ d)
+                    outside Φ; 4-term ℒ_total on Δ³ in training; safetensors
+                    weight format v2. Acceptance: 𝕋3 joint induction holds on
+                    instrumented runs; held-out readout beats persistence with
+                    p < 0.01 (paired statistical test); zero decoder symbols in
+                    the core loop (grep gate).
+22:00 | GOAL      | G-v0.2.0-P5 (spec Phase 5): long-horizon verification
+                    harness `aria verify` — T ≥ 10⁵ steps, streaming JSONL,
+                    memory-bounded. Acceptance: all Inv1–4 within spec §0.2
+                    tolerances for the full run; report archived under
+                    docs/evidence/.
+22:00 | QUESTION  | Q-2026-08-12-4: FFT determinism vs parity — rustfft's
+                    wasm_simd feature changes fp operation order. Keep it OFF
+                    for byte-stable parity, or accept a documented |Δ| bound
+                    like the existing libm tail? Default decision in plan: OFF.
+22:00 | QUESTION  | Q-2026-08-12-5: usearch (C++ FFI, spec-normative §5.3) vs
+                    pure-Rust HNSW — usearch does not compile to
+                    wasm32-unknown-unknown and may not be bit-deterministic
+                    across platforms. Plan decision: VectorIndex trait; pure-
+                    Rust HNSW default (deterministic, seeded); usearch behind
+                    native-only `usearch` feature flag. Does TLC/parity
+                    evidence need a determinism proof for the index, or is the
+                    index outside the discrete Spec surface (retrieval order
+                    only feeds Match policy)?
+22:00 | QUESTION  | Q-2026-08-12-6: candle (spec-normative §4.1) is f32-first;
+                    core Φ math is f64 with 1e-10 energy checks. Plan decision:
+                    core Φ stays hand-rolled f64; candle enters at the readout/
+                    training-serving layer (decoupled by 𝔸5, so precision
+                    cannot touch Inv1–4). Is a candle-accelerated Predictor
+                    (native feature) worth the parity risk in v0.2.0, or defer
+                    to v0.3.0?
+22:00 | QUESTION  | Q-2026-08-12-7: Which paired statistical test certifies
+                    p < 0.01 vs the persistence baseline honestly for
+                    trajectory residuals — paired Wilcoxon signed-rank over
+                    ≥ 30 held-out trajectories, or a paired bootstrap of mean
+                    residual differences? Plan default: Wilcoxon signed-rank +
+                    report effect size; bootstrap as robustness check.
+22:00 | QUESTION  | Q-2026-08-12-8: After adding stop-gradient to the JEPA
+                    target (spec §6.1), what collapse metric guards training —
+                    embedding-space variance floor, or effective-rank of the
+                    latent covariance? Needs a measurable gate in train_jepa.py.
+22:00 | DOCS      | plan_v0.2.0.md authored at repo root: full execution plan
+                    for v0.2.0 core engine, runtime, and training capability;
+                    reviewed for completeness/soundness/correctness against
+                    spec §8 validation predicates before any coding begins.
+
+================================================================================
+2026-08-13 (Thursday)
+================================================================================
+00:02 | TASK      | plan_v0.2.0.md Rev 2 — execution-readiness hardening.
+                    Applied 11 reviewer-flagged gaps; 10 accepted as proposed,
+                    1 CORRECTED before entering the plan: reviewer suggested
+                    rustfft `FftPlanner::new()` for the scalar path, but that
+                    planner auto-dispatches AVX/SSE/NEON via runtime CPU
+                    detection (docs.rs verified) and would break cross-host
+                    parity — plan pins `FftPlannerScalar` explicitly.
+                    Blockers closed: WS3 §0 HNSW decision gate (default
+                    instant-distance, Builder::seed(u64) verified on docs.rs
+                    0.6.1; 3-point audit: wasm/getrandom, determinism,
+                    incremental inserts; fallbacks hnsw_rs → in-repo minimal);
+                    WS6 X1–X5 inlined as finite-window audit rules; WS5
+                    collapse gate pinned to RankMe (arXiv:2210.02885, ICML
+                    2023, verified) with min_rankme_frac = 0.3 default.
+                    Ambiguities closed: WS0 decoder-gate exact pattern set;
+                    WS3 GraphOp concrete types + snapshot-based journal undo
+                    table; WS6 receipt schema (aria-verify-receipt-v1; noted
+                    v3_live_receipt.json is a harness receipt, not a
+                    template); WS3 β via OLS on (ln T, ln|V|) with R².
+                    Missing items added: per-WS "Tests at risk" lines;
+                    expected-CHANGELOG-entries table in §3.
+00:02 | TASK      | Absorbed user's pre-WS0 workspace baseline into the plan:
+                    MSRV 1.80→1.97, centralized [workspace.dependencies],
+                    [workspace.lints] (unsafe_code=forbid, clippy pedantic),
+                    release profile lto=fat/codegen-units=1/panic=abort,
+                    Cargo.lock tracked, CI local-only. Binding consequence
+                    integrated into WS3: panic=abort makes unwind-based
+                    rollback impossible — the Match rollback journal is
+                    explicit snapshot replay, catch_unwind banned.
+00:02 | TASK      | Observe: assets/aria.mmd populated by user with the
+                    v0.1.0 master architecture (mirrors aria-v0.1.0.mmd).
+                    Per skill §5 it is read continuously; the v0.2.0 refresh
+                    remains recommend-only until explicitly requested.
+00:02 | DOCS      | Bibliography grown (verified 2026-08-12/13): RankMe entry
+                    added to jepa-and-world-models.md; instant-distance
+                    Builder::seed + getrandom caveat + build-vs-insert API
+                    note added to rust-wasm-python.md.
+00:02 | QUESTION  | Q-2026-08-13-1: .gitignore now ignores docs/ entirely,
+                    which untracks docs/CHANGELOG.log — the skill's single
+                    source of truth for system history — and docs/evidence/
+                    receipts (WS6 archives there). Intentional? If yes,
+                    recommend git-tracking at least CHANGELOG.log and
+                    docs/evidence/ via negation rules (!docs/CHANGELOG.log,
+                    !docs/evidence/) so history and receipts survive clones.
+00:02 | QUESTION  | Q-2026-08-13-2: instant-distance builds its index from a
+                    full point set (build/build_hnsw) rather than per-item
+                    insertion. WS3 §0(c) decides: amortized doubling rebuilds
+                    vs hnsw_rs incremental insert — measure rebuild cost at
+                    |V| ∈ {10³,10⁴,10⁵,10⁶} before committing the default.
+00:20 | TASK      | Pre-execution codebase preparation (baseline for the
+                    reasonix v0.2.0 loop). Lint burn-down: fixed the
+                    [workspace.lints.clippy] priority bug (groups now
+                    priority=-1 so specific allows override; clippy itself
+                    warned on the tie), added cast_precision_loss to the
+                    workspace allows (usize→f64 casts are provably lossless
+                    under the 𝒮 bounds: N ≤ 16384, |G| ≤ 10⁷ « 2⁵²), ran
+                    cargo clippy --fix (~95 mechanical fixes: uninlined
+                    format args, redundant closures, infallible From casts),
+                    hand-fixed the rest: graph.rs rebuild → clone_from,
+                    optical.rs w.fill(), data.rs literal separator +
+                    u8::try_from, config.rs doc backticks, and six targeted
+                    #[allow]s each with a written justification (apply/
+                    observe/real_main too_many_lines — Spec dispatchers;
+                    InvariantReport 4-bool mirror of Inv1–4; PyO3 by-value;
+                    exact float_cmp in determinism tests). Battery now green
+                    end-to-end: 81 Rust tests · clippy -D warnings clean ·
+                    G2 OK · release CLI 1000-step OPMD invariants=OK (energy
+                    drift 1.8e-13) · WASM parity |Δ|=5.66e-15 · Python 20/20
+                    (maturin develop into new .venv, python -m pytest).
+00:20 | TASK      | Environment prep: installed maturin 1.14.1; created
+                    .venv (system-site-packages; torch 2.4.1 + pytest 9.1.1 +
+                    scipy 1.18.0 reused; gitignored). Confirmed toolchain:
+                    rustc 1.97.1 (satisfies MSRV 1.97), wasm32 target,
+                    wasm-bindgen 0.2.127, node v24. NOTE: use
+                    `python -m pytest` inside .venv — the system pytest
+                    shadows the venv module and false-skips the parity test.
+00:20 | TASK      | Closed Q-2026-08-13-1 (partially): .gitignore `docs` →
+                    `docs/*` + negations !docs/CHANGELOG.log !docs/evidence/
+                    (loop program counter + WS6 receipts now trackable), and
+                    bare `tests` → `/tests/` — the bare pattern was also
+                    ignoring crates/*/tests (Rust integration suites), so new
+                    test files written during execution would have been
+                    invisible to git and vulnerable to git-clean. python/
+                    tests, docs/(rest), spec/, plan, .devin remain ignored
+                    per the owner's publishing posture. Safety net: local
+                    tarball .prep-backup-2026-08-13.tar.gz (gitignored)
+                    snapshots all untracked-critical paths.
+00:20 | INSIGHT   | The release profile (lto=fat, codegen-units=1,
+                    panic=abort) runs the 1000-step OPMD reference clean with
+                    energy drift 1.8e-13 — 4 orders inside the 1e-7 winning
+                    bound and consistent with 𝕃2's O(Mδ) accumulation under
+                    f64 ε ≈ 2.2e-16. Baseline is fit for WS2's FFT
+                    comparison measurements.

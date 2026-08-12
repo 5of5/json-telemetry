@@ -120,8 +120,7 @@ where
         for (i, c) in psi0.iter().enumerate() {
             if !c.re.is_finite() || !c.im.is_finite() {
                 return Err(AriaError::Config(format!(
-                    "ψ₀[{}] = {} is not finite",
-                    i, c
+                    "ψ₀[{i}] = {c} is not finite"
                 )));
             }
         }
@@ -159,6 +158,10 @@ where
     ///
     /// Returns the new state on success, or an invariant violation.
     /// This is the Spec's Next relation turned into a deterministic function.
+    // One match arm per named action, mirroring FORMAL_SPEC §6 one-to-one;
+    // splitting the Next relation across helpers would hurt Spec readability.
+    // The Match arm is restructured in plan_v0.2.0.md WS3 (edit-ops journal).
+    #[allow(clippy::too_many_lines)]
     pub fn apply(
         &self,
         mut state: State,
@@ -391,7 +394,7 @@ where
                 residual,
                 energy,
                 state.g.size(),
-                &format!("{:?}", a).to_lowercase(),
+                &format!("{a:?}").to_lowercase(),
             );
             monitor.observe(action, &state, residual, self.config.eps);
         }

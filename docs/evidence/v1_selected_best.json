@@ -1,0 +1,86 @@
+{
+  "selected": {
+    "id": "ord=O+P+M+D|c=token|e=1|m=identity|d=identity|s=1|r=strict",
+    "config": {
+      "phi_order": [
+        "OpticalStep",
+        "Predict",
+        "Match",
+        "Diffuse"
+      ],
+      "conditioning": "token",
+      "eps": 1,
+      "match_policy": "identity",
+      "diff_policy": "identity",
+      "allow_stutter": true,
+      "residual_model": "strict"
+    },
+    "sound": true,
+    "score": 1150.0,
+    "metrics": {
+      "inv1": true,
+      "inv2": true,
+      "inv3": true,
+      "inv4": true,
+      "complete_actions": true,
+      "jepa_trend": 1.0,
+      "residual_final": 0.0,
+      "tlc_pass": true,
+      "failures": []
+    }
+  },
+  "runner_up": {
+    "id": "ord=O+P+M+D|c=token|e=1|m=one_edit|d=flip|s=1|r=strict",
+    "config": {
+      "phi_order": [
+        "OpticalStep",
+        "Predict",
+        "Match",
+        "Diffuse"
+      ],
+      "conditioning": "token",
+      "eps": 1,
+      "match_policy": "one_edit",
+      "diff_policy": "flip",
+      "allow_stutter": true,
+      "residual_model": "strict"
+    },
+    "sound": true,
+    "score": 1150.0,
+    "metrics": {
+      "inv1": true,
+      "inv2": true,
+      "inv3": true,
+      "inv4": true,
+      "complete_actions": true,
+      "jepa_trend": 1.0,
+      "residual_final": 0.0,
+      "tlc_pass": true,
+      "failures": []
+    }
+  },
+  "selection_reason": "highest valid config among those matching documented \u03a6 = Diff\u2218Match\u2218P\u2218U action order (OpticalStep\u2192Predict\u2192Match\u2192Diffuse)",
+  "validity_checks": {
+    "sound": true,
+    "inv1_energy": true,
+    "inv2_contractivity": true,
+    "inv3_graph": true,
+    "inv4_typeok": true,
+    "complete_four_actions": true,
+    "tlc_pass": true,
+    "no_extra_actions": true,
+    "matches_documented_Phi_order": true
+  },
+  "efficiency_claims": [
+    "Documented \u03a6 action order ranks at the top of the sound set; no more-efficient reordering of named actions was found that beats it under Inv1\u20134+TLC.",
+    "Minimal Match policy (identity) reduces graph churn while remaining sound \u2014 preferred default when no expert correction is required.",
+    "\u03b5=1 (not 0) is the top residual tolerance in both runs \u2014 small budget improves robustness without breaking contractivity gates.",
+    "Stutter may be admitted in long paths (run2) without harming soundness; Spec already permits stuttering.",
+    "Diff identity (run2 winner) is cheaper than flip/graph_conditioned when JEPA residual is already 0 \u2014 optional operating default."
+  ],
+  "doc_upgrades": [
+    "Add PreferredDiscreteSchedule corollary: OpticalStep\u2192Predict\u2192Match\u2192Diffuse as the recommended full-\u03a6 schedule among 4! orders.",
+    "Add operating defaults: \u03b5_default=1, MatchPolicy_default=identity, DiffPolicy_default=identity|flip, stutter permitted.",
+    "Record combinatorial validation evidence (7776 / 10368 spaces, TLC PASS)."
+  ]
+}

@@ -216,6 +216,9 @@ impl GateMonitor {
     }
 
     /// Observe one completed step.
+    // One block per operating gate Inv5–Inv11 (FORMAL_SPEC §2.6), kept in a
+    // single passive observer so no gate can be accidentally skipped.
+    #[allow(clippy::too_many_lines)]
     pub fn observe(&mut self, action: Action, state: &State, residual: f64, eps: f64) {
         let productive = action != Action::Stutter;
 
@@ -256,8 +259,7 @@ impl GateMonitor {
                     self.breach(
                         Gate::Inv6ResidualProductivity,
                         format!(
-                            "Res = {:.6} > ε = {:.6} for {} steps with no Predict/Match/Diffuse",
-                            residual, eps, age
+                            "Res = {residual:.6} > ε = {eps:.6} for {age} steps with no Predict/Match/Diffuse"
                         ),
                     );
                     self.hot_residual_age = None;
@@ -313,7 +315,7 @@ impl GateMonitor {
             if drift > self.config.energy_tol {
                 self.breach(
                     Gate::Inv9EnergyEveryAction,
-                    format!("{:?} drifted energy by {:.3e}", action, drift),
+                    format!("{action:?} drifted energy by {drift:.3e}"),
                 );
             }
         }
@@ -436,7 +438,7 @@ mod tests {
             m.observe(Action::OpticalStep, &s, 5.0, 1.0);
         }
         let r = m.finish();
-        assert!(r.breaches.iter().any(|b| b.gate == "inv6"), "{:?}", r);
+        assert!(r.breaches.iter().any(|b| b.gate == "inv6"), "{r:?}");
     }
 
     #[test]
@@ -468,7 +470,7 @@ mod tests {
         let s = state(4);
         // ±10% oscillation around 1.0 — noise, not divergence.
         for i in 0..200 {
-            let r = 1.0 + 0.1 * ((i as f64) * 0.7).sin();
+            let r = 1.0 + 0.1 * (f64::from(i) * 0.7).sin();
             m.observe(Action::OpticalStep, &s, r, 1.0);
         }
         assert!(m.finish().all_ok(), "Inv8 must not fire on stationary noise");
@@ -479,7 +481,7 @@ mod tests {
         let mut m = monitor(&[Gate::Inv8JepaWindowTrend]);
         let s = state(4);
         for i in 0..64 {
-            m.observe(Action::OpticalStep, &s, 1.0 + i as f64, 1.0);
+            m.observe(Action::OpticalStep, &s, 1.0 + f64::from(i), 1.0);
         }
         assert!(m.finish().breaches.iter().any(|b| b.gate == "inv8"));
     }
@@ -489,7 +491,7 @@ mod tests {
         let mut m = monitor(&[Gate::Inv8JepaWindowTrend]);
         let s = state(4);
         for i in 0..64 {
-            m.observe(Action::OpticalStep, &s, 10.0 / (1.0 + i as f64), 1.0);
+            m.observe(Action::OpticalStep, &s, 10.0 / (1.0 + f64::from(i)), 1.0);
         }
         assert!(m.finish().all_ok());
     }

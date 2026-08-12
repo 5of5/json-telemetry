@@ -37,7 +37,7 @@ pub fn default_config() -> Result<JsValue, JsValue> {
 #[wasm_bindgen(js_name = run)]
 pub fn run(config_json: Option<String>, steps: u32) -> Result<JsValue, JsValue> {
     let config = parse_config(config_json)?;
-    let outcome = runner::run(config, steps as u64).map_err(err)?;
+    let outcome = runner::run(config, u64::from(steps)).map_err(err)?;
     to_js(&outcome.summary)
 }
 
@@ -47,7 +47,7 @@ pub fn run(config_json: Option<String>, steps: u32) -> Result<JsValue, JsValue> 
 #[wasm_bindgen(js_name = runTraceJsonl)]
 pub fn run_trace_jsonl(config_json: Option<String>, steps: u32) -> Result<String, JsValue> {
     let config = parse_config(config_json)?;
-    let outcome = runner::run(config, steps as u64).map_err(err)?;
+    let outcome = runner::run(config, u64::from(steps)).map_err(err)?;
     Ok(outcome.trace.to_jsonl())
 }
 
@@ -78,6 +78,9 @@ mod tests {
     use super::*;
 
     #[test]
+    // Exact comparison on purpose: the default ε must round-trip as the
+    // literal 1.0 for byte-stable parity across surfaces.
+    #[allow(clippy::float_cmp)]
     fn parse_config_defaults_on_empty() {
         let c = parse_config(None).unwrap();
         assert_eq!(c.schedule, "opmd");

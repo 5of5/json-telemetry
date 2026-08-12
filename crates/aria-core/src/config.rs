@@ -39,7 +39,7 @@ pub struct AriaConfig {
     #[serde(default)]
     pub condition: Condition,
 
-    /// Which invariants to check: ["inv1","inv2","inv3","inv4"]
+    /// Which invariants to check: `["inv1","inv2","inv3","inv4"]`
     #[serde(default = "default_check_inv")]
     pub check_inv: Vec<String>,
 

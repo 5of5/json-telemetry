@@ -62,8 +62,7 @@ impl InvViolation {
         InvViolation {
             invariant: 1,
             message: format!(
-                "Inv1 violated: energy {:.6} ≠ initial energy {:.6}",
-                energy, energy_0
+                "Inv1 violated: energy {energy:.6} ≠ initial energy {energy_0:.6}"
             ),
             action,
             before: None,

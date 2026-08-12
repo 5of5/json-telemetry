@@ -4,6 +4,9 @@ use crate::graph::Graph;
 use crate::state::State;
 
 /// Result of an invariant check.
+// Four independent pass/fail flags deliberately mirror Inv1–Inv4; they are
+// parallel verdicts, not an encoded state machine.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone)]
 pub struct InvariantReport {
     pub inv1_ok: bool,
@@ -95,7 +98,7 @@ pub fn check_inv4(state: &State, n_modes: usize, latent_dim: usize) -> (bool, Op
     }
     for (i, c) in state.psi.iter().enumerate() {
         if !c.re.is_finite() || !c.im.is_finite() {
-            return (false, Some(format!("psi[{}] is not finite", i)));
+            return (false, Some(format!("psi[{i}] is not finite")));
         }
     }
     // z must be in Z: all entries finite, correct dim
@@ -111,7 +114,7 @@ pub fn check_inv4(state: &State, n_modes: usize, latent_dim: usize) -> (bool, Op
     }
     for (i, &v) in state.z.iter().enumerate() {
         if !v.is_finite() {
-            return (false, Some(format!("z[{}] is not finite", i)));
+            return (false, Some(format!("z[{i}] is not finite")));
         }
     }
     // G must be a finite directed typed graph — already checked by Inv3

@@ -52,7 +52,7 @@ pub fn euclidean_distance(a: &[f64], b: &[f64]) -> f64 {
 /// though the underlying unitary evolution is fine. Compensation keeps the
 /// error at O(ε) independent of N.
 pub fn field_energy(psi: &[Complex64]) -> f64 {
-    compensated_sqrt(psi.iter().map(|c| c.norm_sqr()))
+    compensated_sqrt(psi.iter().map(num_complex::Complex::norm_sqr))
 }
 
 /// √(Σ terms) with Neumaier compensation.

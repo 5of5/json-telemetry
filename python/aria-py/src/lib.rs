@@ -42,7 +42,9 @@ impl PyConfig {
         max_graph_size = None,
         gates = None,
     ))]
-    #[allow(clippy::too_many_arguments)]
+    // PyO3 extracts owned values from Python arguments; &str/&[T] parameters
+    // would force extra borrow plumbing for no gain in an FFI constructor.
+    #[allow(clippy::too_many_arguments, clippy::needless_pass_by_value)]
     fn new(
         n_modes: Option<usize>,
         latent_dim: Option<usize>,
@@ -140,6 +142,9 @@ impl PyConfig {
 }
 
 /// Result of an invariant check: Inv1–4.
+// Four independent pass/fail flags deliberately mirror Inv1–Inv4 (see
+// aria_engine_core::invariants::InvariantReport).
+#[allow(clippy::struct_excessive_bools)]
 #[pyclass(name = "InvariantReport")]
 #[derive(Clone)]
 pub struct PyInvariantReport {
@@ -354,7 +359,7 @@ fn run_trace_jsonl(py: Python<'_>, steps: u64, config: Option<PyConfig>) -> PyRe
 /// The five named actions: Σ = {OpticalStep, Predict, Match, Diffuse, Stutter}.
 #[pyfunction]
 fn actions() -> Vec<String> {
-    Action::ALL.iter().map(|a| format!("{:?}", a)).collect()
+    Action::ALL.iter().map(|a| format!("{a:?}")).collect()
 }
 
 #[pymodule]
@@ -378,8 +383,7 @@ fn parse_action(s: &str) -> PyResult<Action> {
         "diffuse" | "d" => Ok(Action::Diffuse),
         "stutter" | "s" => Ok(Action::Stutter),
         other => Err(PyValueError::new_err(format!(
-            "unknown action '{}' (expected OpticalStep|Predict|Match|Diffuse|Stutter)",
-            other
+            "unknown action '{other}' (expected OpticalStep|Predict|Match|Diffuse|Stutter)"
         ))),
     }
 }

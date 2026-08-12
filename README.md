@@ -100,7 +100,10 @@ aria bench --n-modes 16,64,256 --steps 1000
 ### From Python
 
 ```bash
-pip install maturin && maturin develop --manifest-path python/aria-py/Cargo.toml
+# Inside a .venv with torch + pytest (system-site-packages recommended)
+pip install maturin
+maturin develop --manifest-path python/aria-py/Cargo.toml
+python -m pytest python/tests -q          # use python -m (not bare pytest)
 ```
 
 ```python
@@ -148,17 +151,18 @@ assert!(report.all_ok());
 cd spec
 java -cp tla2tools.jar tlc2.TLC -config AriaInstance.cfg AriaInstance
 # 2026-08-09: 36049 states, 2616 distinct, Inv1–4 held (t ≤ 3)
+# See spec/RUN.md for setup and full TLC invocation options.
 ```
 
 ### Run the test suite
 
 ```bash
-cargo test --workspace                                  # 74 Rust tests
-cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace                                  # 81 Rust tests
+cargo clippy --workspace --all-targets -- -D warnings   # workspace lints enforced
 ./scripts/check_action_alphabet.sh                      # Σ has exactly 5 members
 
 ./scripts/build_wasm.sh && node www/parity.mjs          # WASM == CLI
-pytest python/tests -q                                  # Python == CLI, and training
+python -m pytest python/tests -q                        # Python == CLI, and training
 ```
 
 ### Train the predictor on real data (Phase 3)
@@ -197,11 +201,11 @@ space. A model that cannot beat persistence has learned nothing.
 
 | Crate | Version | Purpose |
 |---|---|---|
-| [`aria-engine-core`](https://crates.io/crates/aria-engine-core) | 0.0.1 | State machine, Inv1–4, Inv5–11 gates, scheduler, config, traits |
-| [`aria-engine-backends`](https://crates.io/crates/aria-engine-backends) | 0.0.1 | SimOptical, SimPredictor, TrainedPredictor, SimGraphBackend, SimDiffuser, shared runner |
-| [`aria-engine`](https://crates.io/crates/aria-engine) | 0.0.1 | CLI — `run`, `step`, `check`, `bench`, `dataset` |
-| `aria-engine-wasm` | 0.0.1 | wasm-bindgen surface for the browser |
-| `aria-engine-py` | 0.0.1 | PyO3 extension — `import aria` |
+| [`aria-engine-core`](https://crates.io/crates/aria-engine-core) | 0.1.0 | State machine, Inv1–4, Inv5–11 gates, scheduler, config, traits |
+| [`aria-engine-backends`](https://crates.io/crates/aria-engine-backends) | 0.1.0 | SimOptical, SimPredictor, TrainedPredictor, SimGraphBackend, SimDiffuser, shared runner |
+| [`aria-engine`](https://crates.io/crates/aria-engine) | 0.1.0 | CLI — `run`, `step`, `check`, `bench`, `dataset` |
+| `aria-engine-wasm` | 0.1.0 | wasm-bindgen surface for the browser |
+| `aria-engine-py` | 0.1.0 | PyO3 extension — `import aria` |
 
 All three user-facing surfaces call one function, `runner::run`, so parity is
 structural rather than three implementations kept in step by hand.
@@ -224,46 +228,38 @@ aria/
     tests/                    parity + training tests
   www/                        browser demo + Node parity harness
   scripts/                    Σ alphabet gate, wasm build
-  docs/                       Formal specification (reading order below)
-    FORMAL_SPEC.md            Discrete Spec — axioms, actions, Next, Spec
-    SAFETY.md                 Inv1–4 meanings and inductive arguments
-    CONTINUOUS_REFINEMENT.md  Level 0–1 geometry + continuous prototypes
-    RATIONALE.md              Why Aria is a different mathematical object
-    TRACES.md                 W1–W7 accept, X1–X5 reject trajectory families
-    ASYMPTOTICS.md            Asymptotic corollaries
-    PERFORMANCE.md            Measured throughput + scaling (Phase 4)
-    THEORIES.md               Empirical theories from validation
-    VALIDATION.md             TLC + OPGROK evidence lineage
+  docs/                       Formal specification + evidence (see Documentation above)
     evidence/                 Slim JSON receipts (v1–v3)
-  spec/                       TLA⁺ machine Spec
-    Aria.tla                  Full discrete Spec
-    AriaMC.tla                Finite model instance
-    AriaInstance.tla          TLC entry point
+  spec/                       TLA⁺ machine Spec (see Documentation above)
 ```
 
 ---
 
-## Reading order
+## Documentation
 
-| You are a… | Start here |
-|---|---|
-| **Engineer** | [FORMAL_SPEC.md](docs/FORMAL_SPEC.md) → [SAFETY.md](docs/SAFETY.md) → code |
-| **Formal methods researcher** | [FORMAL_SPEC.md](docs/FORMAL_SPEC.md) · [SAFETY.md](docs/SAFETY.md) · [spec/RUN.md](spec/RUN.md) |
-| **ML researcher** | [RATIONALE.md](docs/RATIONALE.md) · [CONTINUOUS_REFINEMENT.md](docs/CONTINUOUS_REFINEMENT.md) |
-| **Curious reader** | This page → [RATIONALE.md](docs/RATIONALE.md) → [FORMAL_SPEC.md](docs/FORMAL_SPEC.md) |
+The formal specification, safety proofs, TLA⁺ model, rationale, performance data, and
+trace families live in `docs/` and `spec/` — available in the repository clone.
 
-### Documentation map
-
-| Document | Governs |
-|---|---|
-| [`FORMAL_SPEC.md`](docs/FORMAL_SPEC.md) | Discrete Spec: axioms 𝔸1–4, postulates ℙ1–3, corollaries 𝐂1–8, Next, Spec |
-| [`SAFETY.md`](docs/SAFETY.md) | Inv1 energy · Inv2 contractivity · Inv3 graph · Inv4 TypeOK |
-| [`CONTINUOUS_REFINEMENT.md`](docs/CONTINUOUS_REFINEMENT.md) | What U, P, Match, Diff mean continuously (non-Spec) |
-| [`RATIONALE.md`](docs/RATIONALE.md) | Ontology: why not a Softmax residual-stream transformer |
-| [`TRACES.md`](docs/TRACES.md) | W1–W7 accept families, X1–X5 reject families |
-| [`PERFORMANCE.md`](docs/PERFORMANCE.md) | Measured throughput, scaling, and what the simulation does *not* evidence |
+- `docs/FORMAL_SPEC.md` — discrete Spec: axioms 𝔸1–4, postulates ℙ1–3, corollaries 𝐂1–8
+- `docs/SAFETY.md` — Inv1–4 inductive safety arguments
+- `docs/CONTINUOUS_REFINEMENT.md` — Level 0–1 geometry (continuous prototypes)
+- `docs/RATIONALE.md` — ontology: why not a Softmax residual-stream transformer
+- `docs/TRACES.md` — W1–W7 accept, X1–X5 reject trajectory families
+- `docs/PERFORMANCE.md` — measured throughput, scaling, simulation limits
+- `docs/CHANGELOG.log` — living history and rate-of-change record
+- `spec/Aria.tla` — full discrete Spec (TLA⁺)
+- `spec/AriaMC.tla` — finite model instance for TLC
+- `spec/AriaInstance.tla` / `AriaInstance.cfg` — TLC entry point
 
 ---
+
+## Requirements
+
+- **Rust** ≥ 1.97 (MSRV; workspace enforces `unsafe_code = "forbid"` + clippy pedantic)
+- **Python** ≥ 3.8 (training: PyTorch 2.4+, scipy, pytest — use `.venv`)
+- **Node** ≥ 20 (WASM parity: `wasm-bindgen` + `www/parity.mjs`)
+- `Cargo.lock` is tracked — all surfaces share identical dependency versions for
+  byte-reproducible parity guarantees.
 
 ## Language stack
 
@@ -284,8 +280,8 @@ aria/
 | Continuous annex | **Present** — Level 0–1 geometry |
 | Phase 1 — reference engine | **Complete** — OPMD 1000-step green |
 | Phase 2 — Python + WASM | **Complete** — CLI, notebook, and browser run the same schedule |
-| Phase 3 — learning loop | **Complete** — held-out JEPA residual 0.842 → 0.116, Lip(P) ≤ 0.49 |
-| Phase 4 — gates + backends | **Complete** — Inv5–11 toggles, backend swap, [performance documented](docs/PERFORMANCE.md) |
+| Phase 3 — learning loop | **Complete** — held-out JEPA residual 0.887 → 0.362, beats persistence 0.645, Lip(P) ≤ 0.49 |
+| Phase 4 — gates + backends | **Complete** — Inv5–11 toggles, backend swap, performance documented |
 | Optical **hardware** backend | Not built — the trait is the seam; ℙ1's `O(log N)` is a substrate property the electronic simulation does not evidence |
 
 ---

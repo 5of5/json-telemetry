@@ -33,7 +33,7 @@ impl OpticalBackend for SimOptical {
     }
 
     fn energy(&self, psi: &[Complex64]) -> f64 {
-        psi.iter().map(|c| c.norm_sqr()).sum::<f64>().sqrt()
+        psi.iter().map(num_complex::Complex::norm_sqr).sum::<f64>().sqrt()
     }
 }
 
@@ -45,6 +45,9 @@ impl OpticalBackend for SimOptical {
 /// product costs O(N³) instead of the O(N⁴) an explicit matmul per reflection
 /// would take. At N = 256 that is the difference between ~8 s and ~30 ms of
 /// setup.
+// Single-character names (u, v, w, n) deliberately mirror the spec's linear
+// algebra: U the unitary, v the reflection vector, w = v†U, n the mode count.
+#[allow(clippy::many_single_char_names)]
 fn make_unitary(n_modes: usize, seed: u64, t: u64) -> Vec<Vec<Complex64>> {
     let mut rng = StdRng::seed_from_u64(seed.wrapping_add(t));
     let n = n_modes;
@@ -68,13 +71,13 @@ fn make_unitary(n_modes: usize, seed: u64, t: u64) -> Vec<Vec<Complex64>> {
                 Complex64::new(theta.cos(), theta.sin()) / (n as f64).sqrt()
             })
             .collect();
-        let norm: f64 = v.iter().map(|c| c.norm_sqr()).sum::<f64>().sqrt();
+        let norm: f64 = v.iter().map(num_complex::Complex::norm_sqr).sum::<f64>().sqrt();
         for vi in &mut v {
             *vi /= Complex64::new(norm, 0.0);
         }
 
         // w = v† U   (row vector, one entry per column of U)
-        w.iter_mut().for_each(|x| *x = Complex64::ZERO);
+        w.fill(Complex64::ZERO);
         for (i, row) in u.iter().enumerate() {
             let vi_conj = v[i].conj();
             for (wj, uij) in w.iter_mut().zip(row) {
@@ -115,7 +118,7 @@ mod tests {
     fn energy_conserved() {
         let opt = SimOptical::new(8);
         let psi0: Vec<Complex64> = (0..8)
-            .map(|i| Complex64::new((i as f64).cos(), (i as f64).sin()))
+            .map(|i| Complex64::new(f64::from(i).cos(), f64::from(i).sin()))
             .collect();
         let e0 = opt.energy(&psi0);
 
@@ -123,7 +126,7 @@ mod tests {
             let psi1 = opt.unitary_step(t, &psi0);
             let e1 = opt.energy(&psi1);
             // Different psi (rotated) but same energy
-            assert!((e1 - e0).abs() < 1e-10, "energy not conserved at t={}", t);
+            assert!((e1 - e0).abs() < 1e-10, "energy not conserved at t={t}");
             // Not identity
             assert!(psi1 != psi0 || t > 0, "unitary is identity — unlikely");
         }
@@ -151,7 +154,7 @@ mod tests {
         let a = SimOptical::with_seed(8, 1);
         let b = SimOptical::with_seed(8, 2);
         let psi0: Vec<Complex64> = (0..8)
-            .map(|i| Complex64::new((i as f64).cos(), (i as f64).sin()))
+            .map(|i| Complex64::new(f64::from(i).cos(), f64::from(i).sin()))
             .collect();
         let psi_a = a.unitary_step(0, &psi0);
         let psi_b = b.unitary_step(0, &psi0);

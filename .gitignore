@@ -20,7 +20,10 @@ assets/aria-video.mp4
 assets/aria-logo-transparent.png
 assets/aria-v0.1.0.mmd
 plan_v0.2.0.md
-tests
+# Root-level acceptance-test corpus only. A bare `tests` pattern would also
+# ignore crates/*/tests (the Rust integration suites) and python/tests —
+# new test files written during v0.2.0 execution must be trackable.
+/tests/
 
 # --- TLA+ / TLC artifacts ---
 .tla/
@@ -65,7 +68,11 @@ build/
 *.tar.gz
 
 # --- Developer-only docs (private build planning; not published) ---
-docs
+# docs/* (not bare `docs`) so the two negations below can re-include the
+# execution loop's state anchors; everything else in docs/ stays ignored.
+docs/*
+!docs/CHANGELOG.log
+!docs/evidence/
 docs/PRD.md
 docs/BUILD_STATUS.md
 docs/OPERATING_SCHEDULE.md

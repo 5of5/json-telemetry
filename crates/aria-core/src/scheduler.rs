@@ -46,7 +46,7 @@ impl Scheduler {
                 'm' => actions.push(Action::Match),
                 'd' => actions.push(Action::Diffuse),
                 's' => actions.push(Action::Stutter),
-                c => return Err(format!("unknown action character: '{}'", c)),
+                c => return Err(format!("unknown action character: '{c}'")),
             }
         }
 

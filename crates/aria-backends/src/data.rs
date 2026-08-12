@@ -75,7 +75,7 @@ fn encode_window_with(
             row.iter()
                 .zip(window)
                 .map(|(p, &b)| {
-                    let x = (b as f64 - 127.5) / 127.5;
+                    let x = (f64::from(b) - 127.5) / 127.5;
                     Complex64::new(p.re * x, p.im * x)
                 })
                 .sum()
@@ -83,7 +83,7 @@ fn encode_window_with(
         .collect();
 
     // Unit norm: keeps the Inv2 worst case at 2·Lip(P) regardless of content.
-    let norm = psi.iter().map(|c| c.norm_sqr()).sum::<f64>().sqrt();
+    let norm = psi.iter().map(num_complex::Complex::norm_sqr).sum::<f64>().sqrt();
     if norm > 0.0 {
         for c in &mut psi {
             *c /= Complex64::new(norm, 0.0);
@@ -195,7 +195,7 @@ mod tests {
     use super::*;
 
     fn norm(psi: &[Complex64]) -> f64 {
-        psi.iter().map(|c| c.norm_sqr()).sum::<f64>().sqrt()
+        psi.iter().map(num_complex::Complex::norm_sqr).sum::<f64>().sqrt()
     }
 
     #[test]
@@ -229,7 +229,7 @@ mod tests {
 
         let identical = sim(&a, &b);
         let different = sim(&a, &c);
-        assert!(identical > 0.999999, "⟨ψ,ψ⟩ = {identical}");
+        assert!(identical > 0.999_999, "⟨ψ,ψ⟩ = {identical}");
         assert!(
             identical > different,
             "identical windows ({identical}) must interfere more than unrelated ones ({different})"
@@ -246,7 +246,7 @@ mod tests {
 
     #[test]
     fn corpus_covers_the_input() {
-        let bytes: Vec<u8> = (0..1000u32).map(|i| (i % 256) as u8).collect();
+        let bytes: Vec<u8> = (0..1000u32).map(|i| u8::try_from(i % 256).unwrap()).collect();
         let fields = encode_corpus(&bytes, 64, 64).unwrap();
         // 1000 bytes = 15 full 64-byte windows + one 40-byte tail (≥ 8, kept).
         assert_eq!(fields.len(), 16);

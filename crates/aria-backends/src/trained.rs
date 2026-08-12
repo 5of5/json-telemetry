@@ -197,7 +197,7 @@ fn check_shape(
             want_rows: rows,
             want_cols: cols,
             got_rows: m.len(),
-            got_cols: m.first().map(|r| r.len()).unwrap_or(0),
+            got_cols: m.first().map_or(0, std::vec::Vec::len),
         });
     }
     if m.iter().flatten().any(|v| !v.is_finite()) {

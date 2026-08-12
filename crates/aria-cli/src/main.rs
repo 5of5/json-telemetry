@@ -198,18 +198,22 @@ fn main() -> ExitCode {
     match real_main(cli) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
-            eprintln!("Error: {}", e);
+            eprintln!("Error: {e}");
             ExitCode::FAILURE
         }
     }
 }
 
+// One block per subcommand (run/step/check/bench/dataset); WS6 of
+// plan_v0.2.0.md adds `verify` and is the right moment to split this into
+// per-subcommand handlers.
+#[allow(clippy::too_many_lines)]
 fn real_main(cli: Cli) -> Result<(), String> {
     let base = match cli.config {
         Some(ref path) => {
             let contents = fs::read_to_string(path)
                 .map_err(|e| format!("failed to read config {}: {}", path.display(), e))?;
-            AriaConfig::from_toml(&contents).map_err(|e| format!("failed to parse config: {}", e))?
+            AriaConfig::from_toml(&contents).map_err(|e| format!("failed to parse config: {e}"))?
         }
         None => AriaConfig::default(),
     };
@@ -295,7 +299,7 @@ fn real_main(cli: Cli) -> Result<(), String> {
 
             if !s.invariants_ok {
                 for f in &s.failures {
-                    eprintln!("  {}", f);
+                    eprintln!("  {f}");
                 }
                 return Err("invariant check failed on final state".into());
             }
@@ -321,7 +325,7 @@ fn real_main(cli: Cli) -> Result<(), String> {
                         .map_err(|e| format!("failed to write trace {}: {}", path.display(), e))?;
                     eprintln!("Trace written to {}", path.display());
                 }
-                None => print!("{}", jsonl),
+                None => print!("{jsonl}"),
             }
             Ok(())
         }
@@ -355,7 +359,7 @@ fn real_main(cli: Cli) -> Result<(), String> {
                 Some(p) => {
                     let s = fs::read_to_string(&p)
                         .map_err(|e| format!("failed to read state {}: {}", p.display(), e))?;
-                    serde_json::from_str(&s).map_err(|e| format!("failed to parse state: {}", e))?
+                    serde_json::from_str(&s).map_err(|e| format!("failed to parse state: {e}"))?
                 }
                 None => canonical_init(&engine, cond).map_err(|e| e.to_string())?,
             };
@@ -364,7 +368,7 @@ fn real_main(cli: Cli) -> Result<(), String> {
             println!(
                 "{}",
                 serde_json::to_string_pretty(&new_state)
-                    .map_err(|e| format!("failed to serialize state: {}", e))?
+                    .map_err(|e| format!("failed to serialize state: {e}"))?
             );
             Ok(())
         }
@@ -386,7 +390,7 @@ fn real_main(cli: Cli) -> Result<(), String> {
             let contents = fs::read_to_string(&state)
                 .map_err(|e| format!("failed to read state {}: {}", state.display(), e))?;
             let state: aria_engine_core::state::State =
-                serde_json::from_str(&contents).map_err(|e| format!("failed to parse state: {}", e))?;
+                serde_json::from_str(&contents).map_err(|e| format!("failed to parse state: {e}"))?;
 
             let engine = sim_engine(config);
             let report = engine.check(&state, cond);
@@ -395,7 +399,7 @@ fn real_main(cli: Cli) -> Result<(), String> {
                 Ok(())
             } else {
                 for failure in report.failures() {
-                    println!("  {}", failure);
+                    println!("  {failure}");
                 }
                 Err("invariant violations".into())
             }
@@ -474,39 +478,35 @@ fn real_main(cli: Cli) -> Result<(), String> {
         } => {
             let n_modes = n_modes.unwrap_or(base.n_modes);
 
-            let (json, summary) = match input {
-                Some(ref path) => {
-                    // Production path: real bytes → spectral fields.
-                    let stride = stride.unwrap_or(n_modes);
-                    let dataset = aria_engine_backends::dataset_from_file(path, n_modes, stride)?;
-                    let summary = format!(
-                        "{} frames from {} bytes of {} (spectral-dft, N={}, stride={})",
-                        dataset.trajectories[0].len(),
-                        dataset.source_bytes,
-                        dataset.source,
-                        n_modes,
-                        stride
-                    );
-                    let json = serde_json::to_string(&dataset)
-                        .map_err(|e| format!("failed to serialize dataset: {}", e))?;
-                    (json, summary)
-                }
-                None => {
-                    // Smoke-test path: synthetic phase-ramp trajectories. These
-                    // exercise the training plumbing; they are not data.
-                    eprintln!(
-                        "note: no --input given — emitting synthetic phase-ramp data for smoke tests only"
-                    );
-                    let seed = seed.or(base.seed).unwrap_or(42);
-                    let dataset = runner::optical_dataset(n_modes, seed, trajectories, length);
-                    let summary = format!(
-                        "{} synthetic trajectories × {} snapshots (N={}, seed={})",
-                        trajectories, length, n_modes, seed
-                    );
-                    let json = serde_json::to_string(&dataset)
-                        .map_err(|e| format!("failed to serialize dataset: {}", e))?;
-                    (json, summary)
-                }
+            let (json, summary) = if let Some(ref path) = input {
+                // Production path: real bytes → spectral fields.
+                let stride = stride.unwrap_or(n_modes);
+                let dataset = aria_engine_backends::dataset_from_file(path, n_modes, stride)?;
+                let summary = format!(
+                    "{} frames from {} bytes of {} (spectral-dft, N={}, stride={})",
+                    dataset.trajectories[0].len(),
+                    dataset.source_bytes,
+                    dataset.source,
+                    n_modes,
+                    stride
+                );
+                let json = serde_json::to_string(&dataset)
+                    .map_err(|e| format!("failed to serialize dataset: {e}"))?;
+                (json, summary)
+            } else {
+                // Smoke-test path: synthetic phase-ramp trajectories. These
+                // exercise the training plumbing; they are not data.
+                eprintln!(
+                    "note: no --input given — emitting synthetic phase-ramp data for smoke tests only"
+                );
+                let seed = seed.or(base.seed).unwrap_or(42);
+                let dataset = runner::optical_dataset(n_modes, seed, trajectories, length);
+                let summary = format!(
+                    "{trajectories} synthetic trajectories × {length} snapshots (N={n_modes}, seed={seed})"
+                );
+                let json = serde_json::to_string(&dataset)
+                    .map_err(|e| format!("failed to serialize dataset: {e}"))?;
+                (json, summary)
             };
 
             match output {
@@ -515,7 +515,7 @@ fn real_main(cli: Cli) -> Result<(), String> {
                         .map_err(|e| format!("failed to write dataset {}: {}", path.display(), e))?;
                     eprintln!("Dataset written to {}: {}", path.display(), summary);
                 }
-                None => println!("{}", json),
+                None => println!("{json}"),
             }
             Ok(())
         }
@@ -530,8 +530,7 @@ fn parse_action(s: &str) -> Result<Action, String> {
         "diffuse" | "d" => Ok(Action::Diffuse),
         "stutter" | "s" => Ok(Action::Stutter),
         other => Err(format!(
-            "unknown action '{}' (expected OpticalStep|Predict|Match|Diffuse|Stutter)",
-            other
+            "unknown action '{other}' (expected OpticalStep|Predict|Match|Diffuse|Stutter)"
         )),
     }
 }

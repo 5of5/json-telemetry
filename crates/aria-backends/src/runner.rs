@@ -83,7 +83,7 @@ pub fn canonical_psi0(n_modes: usize) -> Vec<Complex64> {
             Complex64::new(phase.cos(), phase.sin())
         })
         .collect();
-    let norm: f64 = psi.iter().map(|c| c.norm_sqr()).sum::<f64>().sqrt();
+    let norm: f64 = psi.iter().map(num_complex::Complex::norm_sqr).sum::<f64>().sqrt();
     psi.into_iter()
         .map(|c| c / Complex64::new(norm, 0.0))
         .collect()
@@ -161,7 +161,7 @@ pub fn run_with(
         t: final_state.t,
         graph_size: final_state.g.size(),
         energy: final_state.energy(),
-        residual: trace.entries.last().map(|e| e.res).unwrap_or(0.0),
+        residual: trace.entries.last().map_or(0.0, |e| e.res),
         action_sequence: trace.action_sequence(),
         invariants_ok: report.all_ok(),
         failures: report.failures(),
@@ -264,7 +264,7 @@ pub fn optical_dataset(
                     Complex64::new(phase.cos(), phase.sin())
                 })
                 .collect();
-            let norm: f64 = psi.iter().map(|c| c.norm_sqr()).sum::<f64>().sqrt();
+            let norm: f64 = psi.iter().map(num_complex::Complex::norm_sqr).sum::<f64>().sqrt();
             let mut psi: Vec<Complex64> = psi
                 .into_iter()
                 .map(|c| c / Complex64::new(norm, 0.0))
@@ -302,7 +302,7 @@ pub fn parse_condition(s: &str) -> Result<Condition, AriaError> {
         "token" => Ok(Condition::Token),
         "diffusion" => Ok(Condition::Diffusion),
         "world_model" | "worldmodel" => Ok(Condition::WorldModel),
-        other => Err(AriaError::Config(format!("unknown condition '{}'", other))),
+        other => Err(AriaError::Config(format!("unknown condition '{other}'"))),
     }
 }
 
@@ -313,7 +313,7 @@ mod tests {
     #[test]
     fn canonical_psi0_is_normalized() {
         let psi = canonical_psi0(64);
-        let norm: f64 = psi.iter().map(|c| c.norm_sqr()).sum::<f64>().sqrt();
+        let norm: f64 = psi.iter().map(num_complex::Complex::norm_sqr).sum::<f64>().sqrt();
         assert!((norm - 1.0).abs() < 1e-12);
     }
 

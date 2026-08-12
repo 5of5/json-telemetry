@@ -38,9 +38,7 @@ impl SimPredictor {
         let input_dim = 2 * n_modes;
         assert!(
             latent_dim <= input_dim,
-            "latent_dim {} must be ≤ 2*n_modes {} for a real isometry stub",
-            latent_dim,
-            input_dim
+            "latent_dim {latent_dim} must be ≤ 2*n_modes {input_dim} for a real isometry stub"
         );
 
         // I: random isometry / partial isometry (orthonormal rows)
@@ -152,7 +150,7 @@ mod tests {
     fn embed_produces_correct_dim() {
         let p = SimPredictor::new(8, 16);
         let psi: Vec<Complex64> = (0..8)
-            .map(|i| Complex64::new(i as f64, -(i as f64)))
+            .map(|i| Complex64::new(f64::from(i), -f64::from(i)))
             .collect();
         let z = p.embed(&psi);
         assert_eq!(z.len(), 16);
@@ -165,7 +163,7 @@ mod tests {
         let psi: Vec<Complex64> = (0..8)
             .map(|_| Complex64::new(1.0, 0.0))
             .collect();
-        let norm_psi = psi.iter().map(|c| c.norm_sqr()).sum::<f64>().sqrt();
+        let norm_psi = psi.iter().map(num_complex::Complex::norm_sqr).sum::<f64>().sqrt();
         let z = p.embed(&psi);
         let norm_z = z.iter().map(|x| x * x).sum::<f64>().sqrt();
         assert!((norm_z - norm_psi).abs() < 1e-9, "isometry should preserve norm");
@@ -174,8 +172,8 @@ mod tests {
     #[test]
     fn predict_contractive() {
         let p = SimPredictor::new(8, 16);
-        let z1: Vec<f64> = (0..16).map(|i| (i as f64).sin()).collect();
-        let z2: Vec<f64> = (0..16).map(|i| (i as f64).cos()).collect();
+        let z1: Vec<f64> = (0..16).map(|i| f64::from(i).sin()).collect();
+        let z2: Vec<f64> = (0..16).map(|i| f64::from(i).cos()).collect();
         let d_in = p.dist(&z1, &z2);
         let pz1 = p.predict(&z1, Condition::Token);
         let pz2 = p.predict(&z2, Condition::Token);
@@ -190,6 +188,9 @@ mod tests {
     }
 
     #[test]
+    // Exact comparison on purpose: TLA Dist has a zero diagonal — d(z, z)
+    // must be exactly 0.0, not approximately.
+    #[allow(clippy::float_cmp)]
     fn dist_zero_diagonal() {
         let p = SimPredictor::new(8, 4);
         let z = vec![1.0, 2.0, 3.0, 4.0];

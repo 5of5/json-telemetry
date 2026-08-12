@@ -143,8 +143,8 @@ impl Graph {
 
     /// Replace the entire graph with a target (rebuild to G*).
     pub fn rebuild(&mut self, target: &Graph) {
-        self.nodes = target.nodes.clone();
-        self.edges = target.edges.clone();
+        self.nodes.clone_from(&target.nodes);
+        self.edges.clone_from(&target.edges);
     }
 
     /// Get a node's embedding.
