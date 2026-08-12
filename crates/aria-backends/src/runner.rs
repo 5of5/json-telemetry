@@ -16,6 +16,7 @@ use aria_engine_core::trace::Trace;
 use num_complex::Complex64;
 use serde::{Deserialize, Serialize};
 
+use crate::optical::RefOptical;
 use crate::spectral::SpectralReport;
 use crate::trained::TrainedPredictor;
 use crate::{SimDiffuser, SimGraphBackend, SimOptical, SimPredictor};
@@ -54,7 +55,7 @@ impl Predictor for RefPredictor {
 }
 
 /// The reference engine: Spec runner + the four simulated operators.
-pub type SimEngine = Engine<SimOptical, RefPredictor, SimGraphBackend, SimDiffuser>;
+pub type SimEngine = Engine<RefOptical, RefPredictor, SimGraphBackend, SimDiffuser>;
 
 /// Build the reference engine for a config, with the Phase 1 stub predictor.
 pub fn sim_engine(config: AriaConfig) -> SimEngine {
@@ -67,7 +68,9 @@ pub fn sim_engine(config: AriaConfig) -> SimEngine {
 /// This is the Phase 4 backend-swap seam: nothing else in the engine changes.
 pub fn engine_with(config: AriaConfig, predictor: RefPredictor) -> SimEngine {
     let seed = config.seed.unwrap_or(42);
-    let optical = SimOptical::with_seed(config.n_modes, seed);
+    // Plan WS2: FFT phase-mask kernel for N ≥ 256 (spec §0.2 mandate), the
+    // Householder reference below; config.optical overrides either way.
+    let optical = RefOptical::for_config(&config, seed);
     let graph_backend = SimGraphBackend::new(config.latent_dim);
     let diffuser = SimDiffuser::new(config.latent_dim);
     Engine::new(config, optical, predictor, graph_backend, diffuser)

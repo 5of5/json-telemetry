@@ -87,6 +87,17 @@ pub struct AriaConfig {
     #[serde(default = "default_max_graph_size")]
     pub max_graph_size: usize,
 
+    /// Optical backend selection: `"fft"` (ℙ1 O(N log N) phase-mask unitary,
+    /// spec §5.2) or `"householder"` (the v0.1.0 cached-unitary reference).
+    /// `None` = automatic: FFT for N ≥ 256 (spec mandate), Householder below.
+    #[serde(default)]
+    pub optical: Option<String>,
+
+    /// Inv1 energy-drift check tolerance (spec §0.2): admissible (0, 1e-6].
+    /// The winning-condition audit still demands ≤ 1e-7 regardless (WS6).
+    #[serde(default = "default_eps_energy")]
+    pub eps_energy: f64,
+
     /// Graph merge distance threshold τ (spec §0.4): admissible (0, 1].
     /// Consumed by the merge Match policy (plan WS3, 𝕃3).
     #[serde(default = "default_merge_tau")]
@@ -145,6 +156,12 @@ fn default_max_graph_size() -> usize {
 fn default_true() -> bool {
     true
 }
+fn default_eps_energy() -> f64 {
+    // Tighter than the spec's 1e-7 winning-condition bound (spec §0.2); the
+    // implementation-default tolerance is 1e-10, matching the pre-WS2
+    // hardcoded check_inv1 literal.
+    1e-10
+}
 fn default_merge_tau() -> f64 {
     0.5
 }
@@ -168,6 +185,8 @@ impl Default for AriaConfig {
             check_inv: default_check_inv(),
             gates: GateConfig::default(),
             max_graph_size: default_max_graph_size(),
+            optical: None,
+            eps_energy: default_eps_energy(),
             merge_tau: default_merge_tau(),
             loss_lambdas: LossLambdas::default(),
             vocab_size: default_vocab_size(),
@@ -197,6 +216,8 @@ impl AriaConfig {
             check_inv: default_check_inv(),
             gates: GateConfig::default(),
             max_graph_size: 5000,
+            optical: None,
+            eps_energy: default_eps_energy(),
             merge_tau: default_merge_tau(),
             loss_lambdas: LossLambdas::default(),
             vocab_size: default_vocab_size(),
@@ -313,6 +334,34 @@ impl AriaConfig {
             return Err(AriaError::Config(format!(
                 "vocab_size = {} violates 𝒮: 256 ≤ |V_o| ≤ 128000 — spec §0.1",
                 self.vocab_size
+            )));
+        }
+
+        // Optical backend (plan WS2): only the two shipped backends are
+        // admissible; unknown values are rejected, never silently remapped.
+        if let Some(ref optical) = self.optical {
+            if optical != "fft" && optical != "householder" {
+                return Err(AriaError::Config(format!(
+                    "optical = {optical:?} is not a backend: use \"fft\" or \"householder\" (plan WS2)"
+                )));
+            }
+            // Spec §0.2 mandates O(N log N) optical kernels for N ≥ 256 —
+            // choosing the O(N²) reference there is allowed for research but
+            // warned about loudly, mirroring the test-escape discipline.
+            if optical == "householder" && self.n_modes >= 256 {
+                eprintln!(
+                    "aria: optical = \"householder\" at N = {} — the spec mandates O(N log N) \
+                     for N ≥ 256 (§0.2, ℙ1); using the O(N²) reference backend anyway.",
+                    self.n_modes
+                );
+            }
+        }
+
+        // Inv1 drift tolerance (spec §0.2): admissible (0, 1e-6].
+        if !(self.eps_energy > 0.0 && self.eps_energy <= 1e-6) {
+            return Err(AriaError::Config(format!(
+                "eps_energy = {} violates 𝒮: admissible (0, 1e-6] — spec §0.2",
+                self.eps_energy
             )));
         }
 
@@ -524,5 +573,72 @@ graph = 0.2
         let cfg = AriaConfig::from_toml(src).unwrap();
         assert!(cfg.allow_sub_spec_dims);
         cfg.validate().unwrap();
+    }
+}
+
+#[cfg(test)]
+mod ws2_tests {
+    use super::*;
+
+    fn err_of(cfg: &AriaConfig) -> String {
+        match cfg.validate() {
+            Ok(()) => panic!("config unexpectedly validated: {cfg:?}"),
+            Err(e) => e.to_string(),
+        }
+    }
+
+    #[test]
+    fn eps_energy_rejection_table() {
+        for bad in [0.0, -1e-12, 1.000_001e-6, f64::NAN] {
+            let cfg = AriaConfig {
+                eps_energy: bad,
+                ..AriaConfig::default()
+            };
+            assert!(err_of(&cfg).contains("eps_energy"));
+        }
+        for good in [f64::MIN_POSITIVE, 1e-10, 1e-7, 1e-6] {
+            let cfg = AriaConfig {
+                eps_energy: good,
+                ..AriaConfig::default()
+            };
+            cfg.validate().unwrap();
+        }
+        // Default stays the tight implementation tolerance.
+        assert!((AriaConfig::default().eps_energy - 1e-10).abs() < 1e-20);
+    }
+
+    #[test]
+    fn optical_backend_value_table() {
+        let cfg = AriaConfig {
+            optical: Some("fourier".into()),
+            ..AriaConfig::default()
+        };
+        assert!(err_of(&cfg).contains("optical"));
+        for good in ["fft", "householder"] {
+            let cfg = AriaConfig {
+                optical: Some(good.into()),
+                ..AriaConfig::default()
+            };
+            cfg.validate().unwrap();
+        }
+        assert!(AriaConfig::default().optical.is_none(), "default is automatic");
+    }
+
+    #[test]
+    fn toml_parses_the_ws2_fields() {
+        let src = r"
+n_modes = 256
+latent_dim = 64
+optical = 'fft'
+eps_energy = 1e-7
+";
+        let cfg = AriaConfig::from_toml(src).unwrap();
+        assert_eq!(cfg.optical.as_deref(), Some("fft"));
+        assert!((cfg.eps_energy - 1e-7).abs() < 1e-20);
+        cfg.validate().unwrap();
+
+        let minimal = AriaConfig::from_toml("n_modes = 256\nlatent_dim = 64\n").unwrap();
+        assert!(minimal.optical.is_none());
+        assert!((minimal.eps_energy - 1e-10).abs() < 1e-20);
     }
 }

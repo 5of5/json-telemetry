@@ -42,10 +42,10 @@ impl InvariantReport {
     }
 }
 
-/// Check Inv1: ‖ψ‖₂ = ‖ψ₀‖₂
-pub fn check_inv1(state: &State) -> (bool, Option<String>) {
+/// Check Inv1: ‖ψ‖₂ = ‖ψ₀‖₂ — tolerance from `config.eps_energy` (spec §0.2).
+pub fn check_inv1(state: &State, eps_energy: f64) -> (bool, Option<String>) {
     let energy = state.energy();
-    let ok = (energy - state.energy_0).abs() < 1e-10;
+    let ok = (energy - state.energy_0).abs() < eps_energy;
     let detail = if ok {
         None
     } else {
@@ -134,10 +134,11 @@ pub fn check_all(
     state: &State,
     residual: f64,
     eps: f64,
+    eps_energy: f64,
     n_modes: usize,
     latent_dim: usize,
 ) -> InvariantReport {
-    let (inv1_ok, inv1_detail) = check_inv1(state);
+    let (inv1_ok, inv1_detail) = check_inv1(state, eps_energy);
     let (inv2_ok, inv2_detail) = check_inv2(state, residual, eps);
     let (inv3_ok, inv3_detail) = check_inv3(&state.g, latent_dim);
     let (inv4_ok, inv4_detail) = check_inv4(state, n_modes, latent_dim);

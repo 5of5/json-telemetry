@@ -23,6 +23,9 @@ log.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+# ℙ1/§5.2: O(N log N) FFT phase-mask optical kernel (plan WS2). FftPlannerScalar
+# only — the generic FftPlanner auto-dispatches SIMD and would break parity.
+rustfft = { workspace = true }
 # usearch is the spec-normative §5.3 retrieval engine, kept native-only (C++
 # FFI does not compile to wasm32-unknown-unknown and cross-platform
 # bit-determinism is unproven — Q-2026-08-12-5). OFF by default; the WS3

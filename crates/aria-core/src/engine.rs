@@ -23,8 +23,13 @@ use crate::trace::Trace;
 pub trait OpticalBackend: Debug + Send + Sync {
     /// Apply unitary step: ψ' = U_t(ψ)
     fn unitary_step(&self, t: u64, psi: &[num_complex::Complex64]) -> Vec<num_complex::Complex64>;
-    /// Field energy: ‖ψ‖₂
-    fn energy(&self, psi: &[num_complex::Complex64]) -> f64;
+    /// Field energy: ‖ψ‖₂ — Neumaier-compensated (spec §0.2, plan WS2).
+    ///
+    /// One shared default so every backend measures the Inv1 quantity with
+    /// the same summation; the pre-WS2 per-backend uncompensated sums are gone.
+    fn energy(&self, psi: &[num_complex::Complex64]) -> f64 {
+        crate::state::field_energy(psi)
+    }
 }
 
 /// Predictor backend trait — PRD §5.3
@@ -181,6 +186,7 @@ where
                     &state,
                     post_residual,
                     self.config.eps,
+                    self.config.eps_energy,
                     self.config.n_modes,
                     self.config.latent_dim,
                 );
@@ -210,6 +216,7 @@ where
                     &state,
                     post_residual,
                     self.config.eps,
+                    self.config.eps_energy,
                     self.config.n_modes,
                     self.config.latent_dim,
                 );
@@ -260,6 +267,7 @@ where
                     &state,
                     post_residual,
                     self.config.eps,
+                    self.config.eps_energy,
                     self.config.n_modes,
                     self.config.latent_dim,
                 );
@@ -294,6 +302,7 @@ where
                     &state,
                     post_residual,
                     self.config.eps,
+                    self.config.eps_energy,
                     self.config.n_modes,
                     self.config.latent_dim,
                 );
@@ -318,6 +327,7 @@ where
                     &state,
                     residual,
                     self.config.eps,
+                    self.config.eps_energy,
                     self.config.n_modes,
                     self.config.latent_dim,
                 );
@@ -402,7 +412,7 @@ where
     /// Check all invariants on the current state without applying an action.
     pub fn check(&self, state: &State, a: Condition) -> InvariantReport {
         let residual = self.compute_residual(state, a);
-        invariants::check_all(state, residual, self.config.eps, self.config.n_modes, self.config.latent_dim)
+        invariants::check_all(state, residual, self.config.eps, self.config.eps_energy, self.config.n_modes, self.config.latent_dim)
     }
 
     /// Compute JEPA residual: Res(ψ, z, t) = d(z, P(I(ψ), a_t))

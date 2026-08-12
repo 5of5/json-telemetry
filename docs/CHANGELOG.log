@@ -498,3 +498,23 @@ Labels: MILESTONE | GOAL | TASK | QUESTION | DOCS | INSIGHT
                     docs/BUILD_STATUS.md (WS1 line). Next session: WS2 —
                     FftPlannerScalar + eps_energy (G-v0.2.0-P2); note
                     Q-2026-08-13-3 still open (python/tests sources absent).
+01:30 | TASK      | Session open — WS2 (Spec Phase 2: O(N log N) FFT optical
+                    kernel, Inv1; G-v0.2.0-P2). Planned change-set:
+                    (1) FftOptical backend in crates/aria-backends/src/
+                    optical.rs: ψ' = F⁻¹(e^{iθ(t)} ⊙ F(ψ)) per spec §5.2 with
+                    rustfft unnormalized-transform scaling (1/√N per
+                    direction), seeded per-engine θ mask family,
+                    FftPlannerScalar explicitly (wasm_simd OFF), and the
+                    §0.2 normalization kernel (renormalize to energy_0 if
+                    |‖ψ'‖ − ‖ψ₀‖| > 1e-7). (2) Backend selection via
+                    config.optical = "fft" | "householder"; default fft for
+                    N ≥ 256, householder for N < 256 and legacy tests; warn
+                    (not error) on householder at N ≥ 256. (3) Unify energy
+                    on Neumaier-compensated field_energy; (4) eps_energy
+                    config field (default 1e-10, admissible (0, 1e-6])
+                    read by check_inv1; (5) aria bench per-step μs +
+                    256→1024 scaling ratio. Driving toward the Phase 2
+                    acceptance gate: Inv1 drift ≤ 1e-7 for N ≥ 256 over 10⁴
+                    steps (both backends), FFT unitarity ≤ 1e-12 at N = 4096,
+                    bench ratio ≈ 4–5×, parity suite green — with golden
+                    traces regenerated in the SAME change-set (R3).

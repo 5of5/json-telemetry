@@ -18,7 +18,7 @@ pub mod trained;
 pub use data::{dataset_from_bytes, dataset_from_file, encode_corpus, encode_window, FieldDataset};
 pub use diffuser::SimDiffuser;
 pub use graph::SimGraphBackend;
-pub use optical::SimOptical;
+pub use optical::{FftOptical, RefOptical, SimOptical};
 pub use predictor::SimPredictor;
 pub use runner::{
     engine_with, run, run_with, sim_engine, RefPredictor, RunOutcome, RunSummary, SimEngine,

@@ -50,6 +50,11 @@ enum Commands {
         #[arg(long)]
         eps: Option<f64>,
 
+        /// Optical backend: "fft" (ℙ1) or "householder" (v0.1.0 reference).
+        /// Default: fft for N ≥ 256, householder below (plan WS2).
+        #[arg(long)]
+        optical: Option<String>,
+
         /// Conditioning: token, diffusion, world_model
         #[arg(long)]
         condition: Option<String>,
@@ -228,6 +233,7 @@ fn real_main(cli: Cli) -> Result<(), String> {
             schedule,
             steps,
             eps,
+            optical,
             condition,
             n_modes,
             latent_dim,
@@ -242,6 +248,9 @@ fn real_main(cli: Cli) -> Result<(), String> {
             let mut config = base;
             if let Some(v) = schedule {
                 config.schedule = v;
+            }
+            if let Some(v) = optical {
+                config.optical = Some(v);
             }
             if let Some(v) = eps {
                 config.eps = v;
@@ -462,9 +471,10 @@ fn real_main(cli: Cli) -> Result<(), String> {
                 .collect::<Result<_, _>>()?;
 
             println!(
-                "{:>8}  {:>8}  {:>10}  {:>12}  {:>12}  {:>10}",
-                "N", "dim(Z)", "steps", "setup (ms)", "run (ms)", "steps/s"
+                "{:>8}  {:>8}  {:>10}  {:>12}  {:>12}  {:>10}  {:>10}",
+                "N", "dim(Z)", "steps", "setup (ms)", "run (ms)", "steps/s", "µs/step"
             );
+            let mut run_ms_by_n: Vec<(usize, f64)> = Vec::new();
             for n in sizes {
                 let mut config = base.clone();
                 config.n_modes = n;
@@ -489,6 +499,8 @@ fn real_main(cli: Cli) -> Result<(), String> {
                     .run_monitored(state, &mut scheduler, steps, config.condition)
                     .map_err(|e| e.to_string())?;
                 let run = t_run.elapsed();
+                let run_ms = run.as_secs_f64() * 1000.0;
+                run_ms_by_n.push((n, run_ms));
 
                 let report = engine.check(&final_state, config.condition);
                 if !report.all_ok() {
@@ -496,13 +508,26 @@ fn real_main(cli: Cli) -> Result<(), String> {
                 }
 
                 println!(
-                    "{:>8}  {:>8}  {:>10}  {:>12.1}  {:>12.1}  {:>10.0}",
+                    "{:>8}  {:>8}  {:>10}  {:>12.1}  {:>12.1}  {:>10.0}  {:>10.1}",
                     n,
                     config.latent_dim,
                     steps,
                     setup_ms,
-                    run.as_secs_f64() * 1000.0,
-                    steps as f64 / run.as_secs_f64()
+                    run_ms,
+                    steps as f64 / run.as_secs_f64(),
+                    run_ms * 1000.0 / steps as f64
+                );
+            }
+
+            // The ℙ1 scaling evidence (plan WS2): 256→1024 should be ≈ 4–5×
+            // (N log N), not ~16× (N²) — printed only when both were measured.
+            if let (Some((_, t256)), Some((_, t1024))) = (
+                run_ms_by_n.iter().find(|(n, _)| *n == 256),
+                run_ms_by_n.iter().find(|(n, _)| *n == 1024),
+            ) {
+                println!(
+                    "256→1024 scaling ratio: {:.2}× (N log N predicts 4.53×, N² predicts 16×)",
+                    t1024 / t256
                 );
             }
             Ok(())

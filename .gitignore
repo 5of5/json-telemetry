@@ -14,10 +14,9 @@ The_Aria_Protocol_Graph-JEPA-Foundational-Spec.pdf
 *~
 .fleet/
 .devin
+.reasonix/
 .github/workflows
 assets/aria.mmd
-assets/aria-video.mp4
-assets/aria-logo-transparent.png
 assets/aria-v0.1.0.mmd
 plan_v0.2.0.md
 # Root-level acceptance-test corpus only. A bare `tests` pattern would also
