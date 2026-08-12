@@ -104,12 +104,9 @@ where
         g0: Graph,
         a0: Condition,
     ) -> Result<State, AriaError> {
-        if self.config.n_modes == 0 {
-            return Err(AriaError::Config("n_modes must be ≥ 1".into()));
-        }
-        if self.config.latent_dim == 0 {
-            return Err(AriaError::Config("latent_dim must be ≥ 1".into()));
-        }
+        // The 𝒮 hard bounds (spec §0.1/§0.4) gate every engine construction;
+        // the per-clause messages say exactly which bound was violated.
+        self.config.validate()?;
         if psi0.len() != self.config.n_modes {
             return Err(AriaError::Config(format!(
                 "ψ₀ has {} modes but config.n_modes = {}",

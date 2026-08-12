@@ -255,3 +255,139 @@ Labels: MILESTONE | GOAL | TASK | QUESTION | DOCS | INSIGHT
                     bound and consistent with 𝕃2's O(Mδ) accumulation under
                     f64 ε ≈ 2.2e-16. Baseline is fit for WS2's FFT
                     comparison measurements.
+00:28 | TASK      | Session open — WS0 (Preflight: configuration space 𝒮 +
+                    versioning + CI gates). Planned change-set: (1)
+                    AriaConfig::validate() -> Result<(), AriaError> enforcing
+                    the 𝒮 hard bounds (N ∈ {2^k, k ∈ [4,14]}, 8 ≤ d ≤ 2N,
+                    K ≤ 4, τ ∈ (0,1], λ ∈ Δ³, 256 ≤ |V_o| ≤ 128000) with
+                    reject-with-detail, called from Engine::init and all
+                    CLI/Python/WASM entries; test config (N=8) gains the
+                    explicit allow_sub_spec_dims escape, logged loudly.
+                    (2) New workspace deps pinned in [workspace.dependencies]
+                    (MSRV 1.97 + ≥7-day-age verified at pin time): rustfft,
+                    instant-distance (Rev 2 default; full HNSW audit deferred
+                    to WS3 §0), safetensors, tokenizers (native features
+                    only); feature flags usearch (native-only, off by
+                    default) and candle (deferred per Q-2026-08-12-6).
+                    (3) New CI gate scripts/check_no_decoder_in_core.sh —
+                    case-insensitive grep over crates/aria-core/src for
+                    readout|decoder|tokeniz|vocab|bpe|softmax|logits, with
+                    the # aria-decoder-gate: allow escape. Driving toward
+                    the WS0 acceptance gate: cargo test --workspace green,
+                    structured config errors, G2 + decoder gate pass.
+00:44 | TASK      | WS0 landing — configuration space 𝒮 validation.
+                    crates/aria-core/src/config.rs: added LossLambdas
+                    (λ ∈ Δ³: jepa/nll/spectral/graph, uniform 0.25 defaults)
+                    and AriaConfig fields merge_tau (τ = 0.5), vocab_size
+                    (|V_o| = 256, spec minimum), allow_sub_spec_dims
+                    (false); AriaConfig::validate() enforces the six spec
+                    §0.1/§0.4 clauses — N ∈ {2^k : k ∈ [4,14]}, 8 ≤ d ≤ 2N,
+                    K ∈ {1,2,3,4}, τ ∈ (0,1], λ ∈ Δ³ (Σλᵢ = 1 within 1e-9,
+                    λᵢ ≥ 0 finite), 256 ≤ |V_o| ≤ 128000 — reject-with-
+                    detail, never clamped (Inv4 zero-coercion). 13 new unit
+                    tests (rejection tables per clause, boundary accept,
+                    escape semantics, TOML defaults/round-trip). Wiring:
+                    Engine::init (crates/aria-core/src/engine.rs) and
+                    runner::run_with (crates/aria-backends/src/runner.rs)
+                    call validate(); CLI step/check arms validate on the
+                    state-file paths that bypass init
+                    (crates/aria-cli/src/main.rs); PyConfig gained the
+                    allow_sub_spec_dims kwarg (python/aria-py/src/lib.rs).
+                    Escape logs loudly on every use; relaxes ONLY the two
+                    dimension clauses (test_config N=8, d=16 stays valid).
+                    Tests updated to the 𝒮 reality: gates.rs X1 test now
+                    runs S⁴ O S⁴ O … at the max-valid K = 4 (spec §0.4 caps
+                    the scheduler budget) — Inv5 (budget 2) and Inv11
+                    (all-S windows) still breach, intent preserved; two
+                    TOML test configs (cli.rs, gates.rs) gained the
+                    allow_sub_spec_dims = true line. Battery this session:
+                    94 Rust tests green (81 baseline + 13 new) · clippy
+                    --workspace --all-targets -D warnings clean · G2 OK ·
+                    release 1000-step OPMD invariants=OK (energy drift
+                    0.000000 printed, |G|=250, t=250) · WASM parity
+                    |Δ| = 5.662e-15 (baseline 5.66e-15, unchanged) · Python
+                    leg: extension rebuilt via maturin 1.14.1; smoke-checked
+                    validation behavior through aria.run (sub-spec config
+                    rejected with the exact clause message; escape run
+                    green; K=9 rejected).
+00:44 | TASK      | WS0 landing — new workspace deps + usearch feature.
+                    Cargo.toml [workspace.dependencies] gained pins audited
+                    today (publication age ≥ 7 days; declared MSRV ≤ 1.97):
+                    rustfft 6.4.1 (MSRV 1.61, 2025-09-18), instant-distance
+                    0.6.1 (MSRV 1.58, 2023-06-26; Rev 2 HNSW default — the
+                    WS3 §0 determinism audit stays as planned),
+                    safetensors 0.8.0 (MSRV 1.80, 2026-06-09),
+                    tokenizers 0.23.1 (2026-04-27; default-features = false,
+                    no declared MSRV — consumption-time build re-verifies),
+                    usearch 2.26.0 (2026-07-10; no default features).
+                    crates/aria-backends/Cargo.toml: feature
+                    usearch = ["dep:usearch"] — native-only C++ FFI, OFF by
+                    default (Q-2026-08-12-5 plan decision). candle stays
+                    DEFERRED per Q-2026-08-12-6: core Φ math is hand-rolled
+                    f64 and WS4 readouts do not require candle; revisit at
+                    v0.3.0. None of the pins are consumed by any crate yet
+                    (WS2–WS5 consume) — pins only, Cargo.lock untouched
+                    except the usearch resolution.
+00:44 | TASK      | WS0 landing — decoder gate (𝔸5). New CI gate
+                    scripts/check_no_decoder_in_core.sh: case-insensitive
+                    grep over crates/aria-core/src for
+                    readout|decoder|tokeniz|vocab|bpe|softmax|logits;
+                    deliberately excludes token (Condition::Token) and
+                    generic math words. GREEN on baseline. The gate fired
+                    on WS0's own config work, as the plan anticipated: plan
+                    table row 8 mandates AriaConfig::validate() enforce
+                    256 ≤ |V_o| ≤ 128000, so the |V_o| bound lives in
+                    aria-core by design. Escape used per plan: the gate's
+                    ALLOWED entry (preceded by the sanctioned
+                    `# aria-decoder-gate: allow` justification comment)
+                    covers config.rs lines matching (vocab_size|vocabulary)
+                    — a config bound, not a decoder surface; no
+                    readout/decoder code exists in aria-core, 𝔸5/𝕃5
+                    intact. Four prose doc lines were reworded to avoid
+                    trigger words where the wording was free; the field
+                    name vocab_size itself is spec-pinned (|V_o|) and stays.
+00:44 | DOCS      | docs/BUILD_STATUS.md — v0.2.0 WS0 preflight section
+                    (validate() clauses, decoder gate, dep pins), decoder
+                    gate added to the test-plan table and to the "How to
+                    run everything" battery block.
+00:44 | QUESTION  | Q-2026-08-13-3: python/tests/test_parity.py and
+                    test_training.py sources are ABSENT from the working
+                    tree (only __pycache__/*.pyc remain — confirmed before
+                    any session edit; python/tests is gitignored by design).
+                    The pre-execution battery logged Python 20/20, so the
+                    sources existed at 00:20 today. The compiled test_parity
+                    pyc shows the deleted suite ran an N=8/d=16 config
+                    WITHOUT the escape — when the sources are restored,
+                    test_parity.py must pass allow_sub_spec_dims = True
+                    (the PyConfig kwarg added this session) or its run now
+                    fails 𝒮 validation. Restoring the deleted files is not
+                    this session's call (they are not in any WS0 change-set;
+                    reconstructing tests from pyc would violate the
+                    no-fabrication rule). WS0's battery (plan §4) is
+                    Rust-only, so WS0 is unblocked; WS2/WS5 sessions need
+                    these files back.
+00:44 | INSIGHT   | The decoder gate is doing its job structurally: it
+                    rejected the first WS0 draft within minutes, before any
+                    human review — the 𝔸5 lock now catches collisions at
+                    the same stage as the G2 alphabet gate. Also measured:
+                    adding validate() to the shared runner changed zero
+                    parity bits — WASM |Δ| = 5.662e-15 equals the
+                    2026-08-13 baseline 5.66e-15 to three figures, and the
+                    1000-step release run is byte-identical (invariants OK,
+                    t=250, |G|=250).
+00:58 | TASK      | WS0 COMPLETE — plan §2 acceptance gate green from clean
+                    battery runs this session: cargo test --workspace = 94/94
+                    (81 baseline + 13 new rejection-table tests) · cargo
+                    clippy --workspace --all-targets -- -D warnings clean ·
+                    ./scripts/check_action_alphabet.sh (G2) OK ·
+                    ./scripts/check_no_decoder_in_core.sh (𝔸5) OK · release
+                    1000-step OPMD invariants=OK · WASM parity |Δ| =
+                    5.662e-15 (baseline-identical) · maturin develop +
+                    python -m pytest ran (0 tests collected: python/tests
+                    sources absent — Q-2026-08-13-3) with the validation
+                    behavior smoke-checked through aria.run instead.
+                    Committed as one WS: 86f281b (12 files, +724/−15;
+                    new scripts/check_no_decoder_in_core.sh). Gitignored
+                    paths touched this WS: docs/BUILD_STATUS.md (v0.2.0 WS0
+                    section + decoder-gate rows). Next session: WS1 —
+                    spectral.rs power-iteration primitives (G-v0.2.0-P1).

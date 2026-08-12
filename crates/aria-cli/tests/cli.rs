@@ -38,6 +38,7 @@ condition = "world_model"
 match_policy = "one_edit"
 diff_policy = "graph_conditioned"
 max_graph_size = 5000
+allow_sub_spec_dims = true
 seed = 7
 strict = true
 "#;
@@ -46,6 +47,9 @@ strict = true
     assert_eq!(config.n_modes, 8);
     assert_eq!(config.schedule, "opmd");
     assert_eq!(config.seed, Some(7));
+    // N = 8 is sub-spec; the test-only escape is what lets this run through
+    // the shared runner's 𝒮 validation (plan WS0).
+    assert!(config.allow_sub_spec_dims);
 
     let outcome = runner::run(config, 40).unwrap();
     assert!(outcome.summary.invariants_ok, "{:?}", outcome.summary.failures);

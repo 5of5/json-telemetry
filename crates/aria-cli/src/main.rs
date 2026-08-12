@@ -354,6 +354,9 @@ fn real_main(cli: Cli) -> Result<(), String> {
             };
             let action = parse_action(&action)?;
 
+            // `aria step --state` never calls Engine::init, so the 𝒮 bounds
+            // are enforced here for that path (plan WS0: every CLI entry).
+            config.validate().map_err(|e| e.to_string())?;
             let engine = sim_engine(config);
             let state = match state_path {
                 Some(p) => {
@@ -392,6 +395,9 @@ fn real_main(cli: Cli) -> Result<(), String> {
             let state: aria_engine_core::state::State =
                 serde_json::from_str(&contents).map_err(|e| format!("failed to parse state: {e}"))?;
 
+            // `aria check` never calls Engine::init; enforce the 𝒮 bounds
+            // here for the same reason as `step` (plan WS0).
+            config.validate().map_err(|e| e.to_string())?;
             let engine = sim_engine(config);
             let report = engine.check(&state, cond);
             if report.all_ok() {

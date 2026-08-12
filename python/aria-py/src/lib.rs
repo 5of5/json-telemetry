@@ -41,6 +41,7 @@ impl PyConfig {
         strict = None,
         max_graph_size = None,
         gates = None,
+        allow_sub_spec_dims = None,
     ))]
     // PyO3 extracts owned values from Python arguments; &str/&[T] parameters
     // would force extra borrow plumbing for no gain in an FFI constructor.
@@ -56,6 +57,7 @@ impl PyConfig {
         strict: Option<bool>,
         max_graph_size: Option<usize>,
         gates: Option<String>,
+        allow_sub_spec_dims: Option<bool>,
     ) -> PyResult<Self> {
         let mut inner = AriaConfig::default();
         if let Some(v) = n_modes {
@@ -89,6 +91,9 @@ impl PyConfig {
             // Optional Inv5–Inv11 operating gates; off unless asked for.
             inner.gates.enabled = GateConfig::parse_list(v).map_err(value_err)?;
             inner.gates.stutter_k = inner.stutter_k;
+        }
+        if let Some(v) = allow_sub_spec_dims {
+            inner.allow_sub_spec_dims = v;
         }
         Ok(PyConfig { inner })
     }

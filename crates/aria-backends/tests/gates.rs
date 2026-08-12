@@ -53,9 +53,13 @@ fn the_reference_opmd_run_passes_every_gate() {
 #[test]
 fn x1_perpetual_stutter_breaches_inv5_and_inv11() {
     // X1 is safety-admissible but must not read as success under the gates.
+    // 𝒮 caps the scheduler's stutter budget at K = 4 (spec §0.4), so an
+    // all-stutter schedule degrades to S⁴ O S⁴ O … under the 𝐂7 fallback;
+    // the operating gates still reject the stream: Inv5 sees S-runs of 4
+    // (budget 2) and Inv11 sees windows with zero productive actions.
     let mut cfg = config(&[Gate::Inv5StutterBudget, Gate::Inv11FairProductivity]);
     cfg.schedule = "sssssssssssssssss".into();
-    cfg.stutter_k = 1_000_000; // let the scheduler actually emit the stutters
+    cfg.stutter_k = 4;
     cfg.gates.stutter_k = 2;
 
     let out = runner::run(cfg, 60).unwrap();
@@ -98,6 +102,7 @@ fn gate_config_round_trips_through_toml() {
 n_modes = 8
 latent_dim = 16
 eps = 1.0
+allow_sub_spec_dims = true
 
 [gates]
 enabled = ["inv5", "inv9"]
@@ -105,6 +110,7 @@ window = 6
 horizon = 16
 "#;
     let cfg = AriaConfig::from_toml(src).expect("gates should parse from TOML");
+    assert!(cfg.allow_sub_spec_dims, "N = 8 needs the test-only escape");
     assert_eq!(
         cfg.gates.enabled,
         vec![Gate::Inv5StutterBudget, Gate::Inv9EnergyEveryAction]

@@ -140,6 +140,9 @@ pub fn run_with(
     steps: u64,
     predictor: RefPredictor,
 ) -> Result<RunOutcome, AriaError> {
+    // The 𝒮 hard bounds gate every surface at its single shared entry —
+    // CLI, Python, and WASM all funnel through here (plan WS0).
+    config.validate()?;
     validate_config(&config, &predictor)?;
 
     let condition = config.condition;
@@ -179,14 +182,10 @@ pub fn run_with(
 ///
 /// Every surface funnels through `run_with`, so this is the single place that
 /// turns bad dimensions into a `Config` error instead of a backend panic —
-/// including inside WASM, where a panic is a hard trap.
+/// including inside WASM, where a panic is a hard trap. The 𝒮-domain clauses
+/// live in [`AriaConfig::validate`] (called first); what remains here are the
+/// backend-specific checks that hold regardless of the spec domain.
 fn validate_config(config: &AriaConfig, predictor: &RefPredictor) -> Result<(), AriaError> {
-    if config.n_modes == 0 {
-        return Err(AriaError::Config("n_modes must be ≥ 1".into()));
-    }
-    if config.latent_dim == 0 {
-        return Err(AriaError::Config("latent_dim must be ≥ 1".into()));
-    }
     if !config.eps.is_finite() || config.eps < 0.0 {
         return Err(AriaError::Config(format!(
             "eps must be finite and ≥ 0, got {}",

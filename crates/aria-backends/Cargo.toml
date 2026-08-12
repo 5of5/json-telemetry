@@ -23,6 +23,14 @@ log.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+# usearch is the spec-normative §5.3 retrieval engine, kept native-only (C++
+# FFI does not compile to wasm32-unknown-unknown and cross-platform
+# bit-determinism is unproven — Q-2026-08-12-5). OFF by default; the WS3
+# VectorIndex seam decides whether a run enables it.
+usearch = { workspace = true, optional = true }
+
+[features]
+usearch = ["dep:usearch"]
 
 [dev-dependencies]
 proptest.workspace = true
