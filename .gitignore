@@ -71,5 +71,9 @@ docs/BUILD_STATUS.md
 docs/OPERATING_SCHEDULE.md
 docs/old-ref-prompt.md/
 spec
-Cargo.lock
 python/tests
+
+# NOTE: Cargo.lock IS tracked on purpose.
+# This workspace produces binaries (aria-cli, aria-wasm cdylib), so per
+# Cargo convention the lockfile is committed for reproducible builds.
+# https://doc.rust-lang.org/cargo/faq.html#why-do-binaries-have-cargo-lock-in-version-control-but-not-libraries
