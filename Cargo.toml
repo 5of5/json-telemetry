@@ -52,6 +52,7 @@ tempfile = "3"
 # (≤ 1.97) audit on 2026-08-13; see docs/CHANGELOG.log. Consumed by WS2
 # (rustfft), WS3 (instant-distance/usearch), WS4 (safetensors/tokenizers).
 rustfft = { version = "6.4.1", default-features = false }  # MSRV 1.61, published 2025-09-18
+libm = "0.2.16"                     # MSRV 1.63, published 2026-01-24 (WS2 parity fix)
 instant-distance = "0.6.1"        # MSRV 1.58, published 2023-06-26
 safetensors = "0.8.0"             # MSRV 1.80, published 2026-06-09
 tokenizers = { version = "0.23.1", default-features = false }  # published 2026-04-27

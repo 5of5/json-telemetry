@@ -82,6 +82,7 @@ name = "aria-engine-backends"
 version = "0.1.0"
 dependencies = [
  "aria-engine-core",
+ "libm",
  "log",
  "num-complex",
  "num-traits",

@@ -28,6 +28,12 @@ thiserror.workspace = true
 # The workspace pin disables default features (avx/sse/neon stay OFF) so the
 # scalar butterfly path is the only one that exists on any target.
 rustfft = { workspace = true }
+# Pure-Rust libm for the optical mask trig (plan WS2 parity fix): the host
+# libm differs between execution environments (the MAX/Mojo-venv Python's
+# sin/cos disagrees with the CLI's by ulps at specific arguments — measured).
+# Compiling the same deterministic implementation into the shared rlib makes
+# every surface bit-identical; WASM gets the same code for free.
+libm.workspace = true
 # usearch is the spec-normative §5.3 retrieval engine, kept native-only (C++
 # FFI does not compile to wasm32-unknown-unknown and cross-platform
 # bit-determinism is unproven — Q-2026-08-12-5). OFF by default; the WS3

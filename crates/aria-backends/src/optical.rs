@@ -101,10 +101,17 @@ impl OpticalBackend for FftOptical {
         self.fft.process(&mut buf);
 
         // e^{iθ(t)} ⊙ F(ψ) — the per-engine t-indexed mask family.
+        // sin/cos come from the pure-Rust `libm` crate, NOT the host libm:
+        // the host implementations differ between execution environments
+        // (measured: the MAX/Mojo-venv Python's sin disagrees with the CLI's
+        // by 1 ulp at θ = 0x3fd3aff648e08287), which would break cross-
+        // artifact byte-parity. The shared deterministic implementation
+        // removes the degree of freedom entirely (repo lock: no entropy,
+        // WASM-safe — wasm32 already used this same code via Rust std).
         let mut rng = StdRng::seed_from_u64(self.seed.wrapping_add(t));
         for x in &mut buf {
             let theta: f64 = rng.gen::<f64>() * 2.0 * PI;
-            *x *= Complex64::new(theta.cos(), theta.sin());
+            *x *= Complex64::new(libm::cos(theta), libm::sin(theta));
         }
 
         self.ifft.process(&mut buf);
