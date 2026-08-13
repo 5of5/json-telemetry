@@ -207,7 +207,7 @@ fn make_unitary(n_modes: usize, seed: u64, t: u64) -> Vec<Vec<Complex64>> {
         let mut v: Vec<Complex64> = (0..n)
             .map(|_| {
                 let theta: f64 = rng.gen::<f64>() * 2.0 * PI;
-                Complex64::new(theta.cos(), theta.sin()) / (n as f64).sqrt()
+                Complex64::new(libm::cos(theta), libm::sin(theta)) / (n as f64).sqrt()
             })
             .collect();
         let norm: f64 = v.iter().map(num_complex::Complex::norm_sqr).sum::<f64>().sqrt();
@@ -226,7 +226,7 @@ fn make_unitary(n_modes: usize, seed: u64, t: u64) -> Vec<Vec<Complex64>> {
 
         // U ← phase · (U − 2 v w)
         let phase: f64 = rng.gen::<f64>() * 2.0 * PI;
-        let phase_c = Complex64::new(phase.cos(), phase.sin());
+        let phase_c = Complex64::new(libm::cos(phase), libm::sin(phase));
         for (i, row) in u.iter_mut().enumerate() {
             let two_vi = Complex64::new(2.0, 0.0) * v[i];
             for (uij, wj) in row.iter_mut().zip(&w) {

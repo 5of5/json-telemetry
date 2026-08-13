@@ -19,6 +19,7 @@ pub mod runner;
 pub mod spectral;
 pub mod tokenizer;
 pub mod trained;
+pub mod verify;
 
 pub use data::{dataset_from_bytes, dataset_from_file, encode_corpus, encode_window, FieldDataset};
 pub use dev_seed::{graph_from_dev_seed, load_seed_graph, DevSeed, DEV_SEED_FORMAT};
@@ -40,7 +41,12 @@ pub use tokenizer::{BpeTokenizer, TOKENIZER_FORMAT};
 pub use spectral::{
     project_spectral, power_iteration, Matrix, SpectralError, SpectralReport, DEFAULT_ITERATIONS,
 };
-pub use trained::{PredictorWeights, TrainedPredictor, WeightsError};
+pub use trained::{
+    PredictorWeights, TrainedPredictor, WeightsError, PREDICTOR_V1_FORMAT, PREDICTOR_V2_FORMAT,
+};
+pub use verify::{
+    audit_stream, verify, AuditConfig, TraceAudit, VerifyOpts, VerifyReceipt, RECEIPT_FORMAT,
+};
 
 /// Convenience constructor for a full simulated backend suite.
 pub fn sim_backends(

@@ -267,6 +267,68 @@ enum Commands {
         #[arg(long)]
         init_seeded: Option<u64>,
     },
+
+    /// Streaming long-horizon verification (spec §8 / WS6).
+    ///
+    /// Runs T steps with memory O(1) in T, audits X1–X5, fits β, and writes
+    /// an `aria-verify-receipt-v1` JSON. Default policy is merge (𝕃3).
+    Verify {
+        /// Number of steps (winning condition is T ≥ 10⁵)
+        #[arg(long, default_value = "100000")]
+        steps: u64,
+
+        /// Schedule string (default: "opmd")
+        #[arg(long)]
+        schedule: Option<String>,
+
+        /// Conditioning: token, diffusion, world_model
+        #[arg(long)]
+        condition: Option<String>,
+
+        /// Number of optical modes
+        #[arg(long)]
+        n_modes: Option<usize>,
+
+        /// Latent dimension
+        #[arg(long)]
+        latent_dim: Option<usize>,
+
+        /// Seed
+        #[arg(long)]
+        seed: Option<u64>,
+
+        /// Trained predictor (JSON v1 or safetensors v2). Omit for SimPredictor.
+        #[arg(long)]
+        predictor: Option<PathBuf>,
+
+        /// Optional operating gates, e.g. "all"
+        #[arg(long)]
+        gates: Option<String>,
+
+        /// Match policy (default: merge)
+        #[arg(long)]
+        match_policy: Option<String>,
+
+        /// Merge distance τ
+        #[arg(long)]
+        merge_tau: Option<f64>,
+
+        /// Optional streaming JSONL trace (O(1) memory; write-through)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Receipt JSON path (default: docs/evidence/v0.2.0_longrun_receipt.json)
+        #[arg(long)]
+        receipt: Option<PathBuf>,
+
+        /// Optical-starve window W (default 64)
+        #[arg(long, default_value = "64")]
+        window: usize,
+
+        /// Uncapped-diffuse run cap (default 8)
+        #[arg(long, default_value = "8")]
+        d_cap: usize,
+    },
 }
 
 fn main() -> ExitCode {
@@ -721,7 +783,176 @@ fn real_main(cli: Cli) -> Result<(), String> {
             dump_latents.as_deref(),
             init_seeded,
         ),
+
+        Commands::Verify {
+            steps,
+            schedule,
+            condition,
+            n_modes,
+            latent_dim,
+            seed,
+            predictor,
+            gates,
+            match_policy,
+            merge_tau,
+            output,
+            receipt,
+            window,
+            d_cap,
+        } => verify_cmd(
+            base,
+            steps,
+            schedule.as_deref(),
+            condition.as_deref(),
+            n_modes,
+            latent_dim,
+            seed,
+            predictor.as_deref(),
+            gates.as_deref(),
+            match_policy.as_deref(),
+            merge_tau,
+            output.as_deref(),
+            receipt.as_deref(),
+            window,
+            d_cap,
+        ),
     }
+}
+
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+fn verify_cmd(
+    mut config: AriaConfig,
+    steps: u64,
+    schedule: Option<&str>,
+    condition: Option<&str>,
+    n_modes: Option<usize>,
+    latent_dim: Option<usize>,
+    seed: Option<u64>,
+    predictor: Option<&std::path::Path>,
+    gates: Option<&str>,
+    match_policy: Option<&str>,
+    merge_tau: Option<f64>,
+    output: Option<&std::path::Path>,
+    receipt: Option<&std::path::Path>,
+    window: usize,
+    d_cap: usize,
+) -> Result<(), String> {
+    use aria_engine_backends::{verify, AuditConfig, VerifyOpts};
+
+    if let Some(v) = schedule {
+        config.schedule = v.to_string();
+    }
+    if let Some(v) = n_modes {
+        config.n_modes = v;
+    }
+    if let Some(v) = latent_dim {
+        config.latent_dim = v;
+    }
+    if let Some(v) = seed {
+        config.seed = Some(v);
+    }
+    if let Some(v) = condition {
+        config.condition = runner::parse_condition(v).map_err(|e| e.to_string())?;
+    }
+    if let Some(list) = gates {
+        config.gates.enabled = GateConfig::parse_list(list)?;
+        config.gates.stutter_k = config.stutter_k;
+    }
+    config.match_policy = match match_policy {
+        Some(p) => parse_match_policy(p)?,
+        None => MatchPolicy::Merge,
+    };
+    if let Some(t) = merge_tau {
+        config.merge_tau = t;
+    }
+    // A 10⁵ identity run can exceed the default |G| cap; merge stays well
+    // under it, but do not fail a long verify on a bookkeeping bound.
+    if config.max_graph_size < 100_000 {
+        config.max_graph_size = 100_000;
+    }
+
+    let predictor = match predictor {
+        Some(path) => {
+            let trained = TrainedPredictor::from_file(path)
+                .map_err(|e| format!("failed to load {}: {}", path.display(), e))?;
+            config.n_modes = trained.n_modes();
+            config.latent_dim = trained.latent_dim();
+            eprintln!(
+                "Predictor: trained weights from {} (Lip(P) = {:.4})",
+                path.display(),
+                trained.measured_lipschitz().map_err(|e| e.to_string())?
+            );
+            RefPredictor::Trained(trained)
+        }
+        None => RefPredictor::Sim(SimPredictor::new(config.n_modes, config.latent_dim)),
+    };
+
+    let receipt_path = receipt.map_or_else(
+        || PathBuf::from("docs/evidence/v0.2.0_longrun_receipt.json"),
+        PathBuf::from,
+    );
+    if let Some(parent) = receipt_path.parent() {
+        if !parent.as_os_str().is_empty() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("create {}: {e}", parent.display()))?;
+        }
+    }
+
+    let mut audit = AuditConfig::from_config(&config);
+    audit.w = window;
+    audit.d_cap = d_cap;
+
+    eprintln!(
+        "Aria verify: {steps} steps, schedule={}, N={}, dim(Z)={}, condition={:?}, match={:?}",
+        config.schedule, config.n_modes, config.latent_dim, config.condition, config.match_policy
+    );
+
+    let r = verify(VerifyOpts {
+        config,
+        steps,
+        predictor,
+        g0: aria_engine_core::graph::Graph::empty(),
+        audit,
+        trace_path: output.map(PathBuf::from),
+        receipt_path: Some(receipt_path.clone()),
+    })
+    .map_err(|e| e.to_string())?;
+
+    eprintln!(
+        "verify: steps={} inv1_max_drift={:.3e} inv2={} inv3={} inv4={} β={:.4} (R²={:.4}) family={} X1-5=({},{},{},{},{}) {:.1} steps/s",
+        r.steps,
+        r.inv1_max_drift,
+        r.inv2_violations,
+        r.inv3_violations,
+        r.inv4_violations,
+        r.graph.measured_beta,
+        r.graph.beta_r2,
+        r.trace_audit.family,
+        r.trace_audit.x1,
+        r.trace_audit.x2,
+        r.trace_audit.x3,
+        r.trace_audit.x4,
+        r.trace_audit.x5,
+        r.steps_per_s
+    );
+    if let Some(note) = &r.beta_note {
+        eprintln!("β note: {note}");
+    }
+    eprintln!("receipt: {}", receipt_path.display());
+
+    if !r.invariants_ok {
+        return Err("verify: invariants not green".into());
+    }
+    if r.inv1_max_drift > 1e-7 {
+        return Err(format!(
+            "verify: Inv1 max drift {:.3e} exceeds 1e-7",
+            r.inv1_max_drift
+        ));
+    }
+    if r.graph.measured_beta.is_finite() && r.graph.measured_beta > 1.0 {
+        return Err(format!("verify: β = {:.4} > 1", r.graph.measured_beta));
+    }
+    Ok(())
 }
 
 /// Post-hoc readout. Structurally incapable of mutating Φ.

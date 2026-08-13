@@ -35,7 +35,7 @@ pub fn fit_growth_exponent(samples: &[(u64, usize)]) -> Option<GrowthFit> {
     let pts: Vec<(f64, f64)> = samples
         .iter()
         .filter(|(t, v)| *t > 0 && *v > 0)
-        .map(|(t, v)| ((*t as f64).ln(), (*v as f64).ln()))
+        .map(|(t, v)| (libm::log(*t as f64), libm::log(*v as f64)))
         .collect();
 
     if pts.len() < 2 {

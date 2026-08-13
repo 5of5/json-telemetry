@@ -20,6 +20,7 @@ assets/aria.mmd
 assets/aria-v0.1.0.mmd
 plan_v0.2.0.md
 plan_v0.2.0_remaining_tasks.md
+last_tasks_towards_v.0.2.0.md
 # Python runtime + training (private; aria-py crate stays tracked via git
 # history — gitignore only blocks NEW untracked files, not existing ones).
 # WS5 will need to force-add new test files: `git add -f python/tests/test_training.py`

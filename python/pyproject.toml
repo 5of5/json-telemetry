@@ -21,6 +21,9 @@ dynamic = ["version"]
 Homepage = "https://github.com/aria-ai/aria"
 Repository = "https://github.com/aria-ai/aria"
 
+[project.optional-dependencies]
+training = ["torch>=2.0", "scipy>=1.10"]
+
 [tool.maturin]
 manifest-path = "aria-py/Cargo.toml"
 module-name = "aria"

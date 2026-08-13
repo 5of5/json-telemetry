@@ -28,8 +28,25 @@ aria run --steps 500 --n-modes 256 --latent-dim 64 --eps 1.0
 # Export trace to JSONL
 aria run --steps 100 --output trace.jsonl
 
+# Load trained predictor weights (JSON v1 or safetensors v2)
+aria run --steps 1000 --predictor weights.safetensors
+
 # Non-strict mode (log violations, don't abort)
 aria run --steps 1000 --no-strict
+```
+
+### Long-horizon verify (v0.2.0)
+
+Streaming 10⁵-step run with O(1) memory, Inv1–4 checks, action-shape audit, and a JSON receipt:
+
+```bash
+aria verify --steps 100000 --match-policy merge --receipt receipt.json
+```
+
+### Decode a finished latent sequence
+
+```bash
+aria emit --trace run.jsonl --readout readout.safetensors
 ```
 
 ### Step a single action

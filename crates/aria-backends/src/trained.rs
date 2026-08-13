@@ -19,19 +19,29 @@
 //! Inv2 hold unconditionally. [`TrainedPredictor::max_residual_jump`] reports
 //! that bound so a config can be checked against it before a run.
 
+use std::collections::HashMap;
+use std::path::Path;
+
 use aria_engine_core::condition::Condition;
 use aria_engine_core::engine::Predictor;
 use num_complex::Complex64;
+use safetensors::tensor::{serialize, Dtype, TensorView};
+use safetensors::SafeTensors;
 use serde::{Deserialize, Serialize};
 
 use crate::spectral::{
     power_iteration, project_spectral, SpectralError, SpectralReport, DEFAULT_ITERATIONS,
 };
 
+/// JSON checkpoint written by `python/training/train_jepa.py --out`.
+pub const PREDICTOR_V1_FORMAT: &str = "aria-predictor-v1";
+/// Safetensors checkpoint written by `python/training/train_jepa.py --out-v2`.
+pub const PREDICTOR_V2_FORMAT: &str = "aria-predictor-v2";
+
 /// On-disk weight format written by `python/training/train_jepa.py`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PredictorWeights {
-    /// Format tag; must be `aria-predictor-v1`.
+    /// Format tag; `aria-predictor-v1` (JSON) or `aria-predictor-v2` (safetensors).
     pub format: String,
     pub n_modes: usize,
     pub latent_dim: usize,
@@ -54,8 +64,14 @@ pub struct ConditionedWeights {
 /// Error cases when loading a checkpoint.
 #[derive(Debug, thiserror::Error)]
 pub enum WeightsError {
-    #[error("unsupported weight format '{0}' (expected 'aria-predictor-v1')")]
+    #[error("unsupported weight format '{0}' (expected '{PREDICTOR_V1_FORMAT}' or '{PREDICTOR_V2_FORMAT}')")]
     Format(String),
+    #[error("safetensors error: {0}")]
+    Safe(String),
+    #[error("utf-8 error: {0}")]
+    Utf8(String),
+    #[error("{0}")]
+    Invalid(String),
     #[error("{name}: expected shape [{want_rows} × {want_cols}], got [{got_rows} × {got_cols}]")]
     Shape {
         name: &'static str,
@@ -94,14 +110,30 @@ impl TrainedPredictor {
         Self::from_weights(serde_json::from_str(src)?)
     }
 
-    /// Load a checkpoint from a file path.
-    pub fn from_file(path: impl AsRef<std::path::Path>) -> Result<Self, WeightsError> {
-        Self::from_json(&std::fs::read_to_string(path)?)
+    /// Load a checkpoint from a file path (JSON v1 or safetensors v2).
+    pub fn from_file(path: impl AsRef<Path>) -> Result<Self, WeightsError> {
+        let bytes = std::fs::read(path)?;
+        if looks_like_safetensors(&bytes) {
+            Self::from_safetensors(&bytes)
+        } else {
+            let src = std::str::from_utf8(&bytes).map_err(|e| WeightsError::Utf8(e.to_string()))?;
+            Self::from_json(src)
+        }
     }
 
-    /// Build from an in-memory checkpoint, validating shapes and enforcing ℙ2.
+    /// Load an `aria-predictor-v2` safetensors buffer.
+    pub fn from_safetensors(bytes: &[u8]) -> Result<Self, WeightsError> {
+        let w = PredictorWeights::from_safetensors(bytes)?;
+        Self::from_weights_tagged(w, PREDICTOR_V2_FORMAT)
+    }
+
+    /// Build from an in-memory JSON v1 checkpoint, validating shapes and enforcing ℙ2.
     pub fn from_weights(w: PredictorWeights) -> Result<Self, WeightsError> {
-        if w.format != "aria-predictor-v1" {
+        Self::from_weights_tagged(w, PREDICTOR_V1_FORMAT)
+    }
+
+    fn from_weights_tagged(w: PredictorWeights, expected: &str) -> Result<Self, WeightsError> {
+        if w.format != expected {
             return Err(WeightsError::Format(w.format));
         }
         if !w.lipschitz_bound.is_finite() || w.lipschitz_bound <= 0.0 {
@@ -208,6 +240,181 @@ impl Predictor for TrainedPredictor {
             .sum::<f64>()
             .sqrt()
     }
+}
+
+impl PredictorWeights {
+    /// Serialize as `aria-predictor-v2` safetensors (F64, little-endian).
+    pub fn to_safetensors(&self) -> Result<Vec<u8>, WeightsError> {
+        let embed = flatten(&self.embed);
+        let token = flatten(&self.predict.token);
+        let diffusion = flatten(&self.predict.diffusion);
+        let world = flatten(&self.predict.world_model);
+        let embed_b = f64_to_le(&embed);
+        let token_b = f64_to_le(&token);
+        let diffusion_b = f64_to_le(&diffusion);
+        let world_b = f64_to_le(&world);
+        let d = self.latent_dim;
+        let input_dim = 2 * self.n_modes;
+        let t_embed = view("embed", vec![d, input_dim], &embed_b)?;
+        let t_token = view("predict.token", vec![d, d], &token_b)?;
+        let t_diff = view("predict.diffusion", vec![d, d], &diffusion_b)?;
+        let t_world = view("predict.world_model", vec![d, d], &world_b)?;
+        let tensors = [
+            ("embed", t_embed),
+            ("predict.token", t_token),
+            ("predict.diffusion", t_diff),
+            ("predict.world_model", t_world),
+        ];
+        let mut meta = HashMap::new();
+        meta.insert("format".into(), PREDICTOR_V2_FORMAT.into());
+        meta.insert("n_modes".into(), self.n_modes.to_string());
+        meta.insert("latent_dim".into(), self.latent_dim.to_string());
+        meta.insert("lipschitz_bound".into(), format!("{:?}", self.lipschitz_bound));
+        serialize(tensors, Some(meta)).map_err(|e| WeightsError::Safe(e.to_string()))
+    }
+
+    /// Parse an `aria-predictor-v2` buffer into the in-memory weight struct.
+    pub fn from_safetensors(bytes: &[u8]) -> Result<Self, WeightsError> {
+        let tensors =
+            SafeTensors::deserialize(bytes).map_err(|e| WeightsError::Safe(e.to_string()))?;
+        let (_, header) =
+            SafeTensors::read_metadata(bytes).map_err(|e| WeightsError::Safe(e.to_string()))?;
+        let meta = header
+            .metadata()
+            .clone()
+            .ok_or_else(|| WeightsError::Invalid("missing safetensors metadata".into()))?;
+        let format = meta
+            .get("format")
+            .ok_or_else(|| WeightsError::Invalid("metadata missing 'format'".into()))?
+            .clone();
+        if format != PREDICTOR_V2_FORMAT {
+            return Err(WeightsError::Format(format));
+        }
+        let n_modes = parse_meta_usize(&meta, "n_modes")?;
+        let latent_dim = parse_meta_usize(&meta, "latent_dim")?;
+        let lipschitz_bound = parse_meta_f64(&meta, "lipschitz_bound")?;
+        let input_dim = 2 * n_modes;
+        let embed = unflatten(&load_f64(&tensors, "embed", &[latent_dim, input_dim])?, latent_dim, input_dim);
+        let token = unflatten(
+            &load_f64(&tensors, "predict.token", &[latent_dim, latent_dim])?,
+            latent_dim,
+            latent_dim,
+        );
+        let diffusion = unflatten(
+            &load_f64(&tensors, "predict.diffusion", &[latent_dim, latent_dim])?,
+            latent_dim,
+            latent_dim,
+        );
+        let world_model = unflatten(
+            &load_f64(&tensors, "predict.world_model", &[latent_dim, latent_dim])?,
+            latent_dim,
+            latent_dim,
+        );
+        Ok(Self {
+            format,
+            n_modes,
+            latent_dim,
+            lipschitz_bound,
+            embed,
+            predict: ConditionedWeights {
+                token,
+                diffusion,
+                world_model,
+            },
+        })
+    }
+}
+
+fn looks_like_safetensors(bytes: &[u8]) -> bool {
+    if bytes.len() < 9 {
+        return false;
+    }
+    let header_len = u64::from_le_bytes(bytes[0..8].try_into().unwrap_or([0; 8]));
+    let Ok(n) = usize::try_from(header_len) else {
+        return false;
+    };
+    n > 1 && n < bytes.len().saturating_sub(8) && bytes.get(8) == Some(&b'{')
+}
+
+fn flatten(m: &[Vec<f64>]) -> Vec<f64> {
+    m.iter().flatten().copied().collect()
+}
+
+fn unflatten(v: &[f64], rows: usize, cols: usize) -> Vec<Vec<f64>> {
+    v.chunks(cols).take(rows).map(<[f64]>::to_vec).collect()
+}
+
+fn f64_to_le(v: &[f64]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(v.len() * 8);
+    for x in v {
+        out.extend_from_slice(&x.to_le_bytes());
+    }
+    out
+}
+
+fn le_to_f64(bytes: &[u8]) -> Result<Vec<f64>, WeightsError> {
+    if !bytes.len().is_multiple_of(8) {
+        return Err(WeightsError::Invalid(
+            "f64 tensor byte length is not a multiple of 8".into(),
+        ));
+    }
+    Ok(bytes
+        .chunks_exact(8)
+        .map(|c| f64::from_le_bytes(c.try_into().expect("chunks_exact(8)")))
+        .collect())
+}
+
+fn view<'a>(name: &'static str, shape: Vec<usize>, data: &'a [u8]) -> Result<TensorView<'a>, WeightsError> {
+    TensorView::new(Dtype::F64, shape, data).map_err(|e| WeightsError::Safe(format!("{name}: {e}")))
+}
+
+fn load_f64(
+    tensors: &SafeTensors<'_>,
+    name: &'static str,
+    want: &[usize],
+) -> Result<Vec<f64>, WeightsError> {
+    let t = tensors
+        .tensor(name)
+        .map_err(|e| WeightsError::Invalid(format!("missing tensor '{name}': {e}")))?;
+    if t.dtype() != Dtype::F64 {
+        return Err(WeightsError::Invalid(format!(
+            "{name}: expected F64, got {:?}",
+            t.dtype()
+        )));
+    }
+    if t.shape() != want {
+        return Err(WeightsError::Shape {
+            name,
+            want_rows: want.first().copied().unwrap_or(0),
+            want_cols: want.get(1).copied().unwrap_or(0),
+            got_rows: t.shape().first().copied().unwrap_or(0),
+            got_cols: t.shape().get(1).copied().unwrap_or(0),
+        });
+    }
+    let vals = le_to_f64(t.data())?;
+    if vals.iter().any(|x| !x.is_finite()) {
+        return Err(WeightsError::NonFinite(name));
+    }
+    Ok(vals)
+}
+
+fn parse_meta_usize(meta: &HashMap<String, String>, key: &str) -> Result<usize, WeightsError> {
+    meta.get(key)
+        .ok_or_else(|| WeightsError::Invalid(format!("metadata missing '{key}'")))?
+        .parse()
+        .map_err(|_| WeightsError::Invalid(format!("metadata '{key}' is not a usize")))
+}
+
+fn parse_meta_f64(meta: &HashMap<String, String>, key: &str) -> Result<f64, WeightsError> {
+    let v: f64 = meta
+        .get(key)
+        .ok_or_else(|| WeightsError::Invalid(format!("metadata missing '{key}'")))?
+        .parse()
+        .map_err(|_| WeightsError::Invalid(format!("metadata '{key}' is not an f64")))?;
+    if !v.is_finite() {
+        return Err(WeightsError::Invalid(format!("metadata '{key}' is not finite")));
+    }
+    Ok(v)
 }
 
 fn check_shape(
@@ -364,5 +571,43 @@ mod tests {
         let p = TrainedPredictor::from_json(&src).unwrap();
         assert_eq!(p.latent_dim(), 4);
         assert_eq!(p.n_modes(), 4);
+    }
+
+    #[test]
+    fn safetensors_v2_round_trip_matches_json_v1() {
+        let w = weights(8, 8, 0.3, 0.49);
+        let bytes = w.to_safetensors().unwrap();
+        let from_v2 = TrainedPredictor::from_safetensors(&bytes).unwrap();
+        let from_v1 = TrainedPredictor::from_weights(w).unwrap();
+        assert_eq!(from_v2.n_modes(), from_v1.n_modes());
+        assert_eq!(from_v2.latent_dim(), from_v1.latent_dim());
+        assert!((from_v2.measured_lipschitz().unwrap() - from_v1.measured_lipschitz().unwrap()).abs() < 1e-12);
+        let probe = [num_complex::Complex64::new(1.0, 0.0); 8];
+        let a = from_v2.embed(&probe);
+        let b = from_v1.embed(&probe);
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn v2_loader_rejects_a_bad_format_tag() {
+        let mut w = weights(4, 4, 0.3, 0.49);
+        w.format = PREDICTOR_V2_FORMAT.into();
+        let mut bytes = w.to_safetensors().unwrap();
+        // Corrupt the format string inside the header.
+        if let Some(pos) = bytes.windows(PREDICTOR_V2_FORMAT.len()).position(|w| w == PREDICTOR_V2_FORMAT.as_bytes()) {
+            bytes[pos] = b'X';
+        }
+        assert!(TrainedPredictor::from_safetensors(&bytes).is_err());
+    }
+
+    #[test]
+    fn from_file_sniffs_v2() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("aria-predictor-v2-sniff-test.safetensors");
+        let w = weights(4, 4, 0.25, 0.49);
+        std::fs::write(&path, w.to_safetensors().unwrap()).unwrap();
+        let p = TrainedPredictor::from_file(&path).unwrap();
+        assert_eq!(p.latent_dim(), 4);
+        let _ = std::fs::remove_file(&path);
     }
 }

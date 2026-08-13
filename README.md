@@ -201,11 +201,11 @@ space. A model that cannot beat persistence has learned nothing.
 
 | Crate | Version | Purpose |
 |---|---|---|
-| [`aria-engine-core`](https://crates.io/crates/aria-engine-core) | 0.1.0 | State machine, Inv1–4, Inv5–11 gates, scheduler, config, traits |
-| [`aria-engine-backends`](https://crates.io/crates/aria-engine-backends) | 0.1.0 | SimOptical, SimPredictor, TrainedPredictor, SimGraphBackend, SimDiffuser, shared runner |
-| [`aria-engine`](https://crates.io/crates/aria-engine) | 0.1.0 | CLI — `run`, `step`, `check`, `bench`, `dataset` |
-| `aria-engine-wasm` | 0.1.0 | wasm-bindgen surface for the browser |
-| `aria-engine-py` | 0.1.0 | PyO3 extension — `import aria` |
+| [`aria-engine-core`](https://crates.io/crates/aria-engine-core) | 0.2.0 | State machine, Inv1–4, Inv5–11 gates, scheduler, config, traits |
+| [`aria-engine-backends`](https://crates.io/crates/aria-engine-backends) | 0.2.0 | SimOptical, SimPredictor, TrainedPredictor, SimGraphBackend, SimDiffuser, shared runner |
+| [`aria-engine`](https://crates.io/crates/aria-engine) | 0.2.0 | CLI — `run`, `step`, `check`, `bench`, `dataset`, `emit`, `verify` |
+| `aria-engine-wasm` | 0.2.0 | wasm-bindgen surface for the browser |
+| `aria-engine-py` | 0.2.0 | PyO3 extension — `import aria` |
 
 All three user-facing surfaces call one function, `runner::run`, so parity is
 structural rather than three implementations kept in step by hand.

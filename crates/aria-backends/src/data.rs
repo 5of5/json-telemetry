@@ -54,7 +54,7 @@ pub fn encode_window(window: &[u8], n_modes: usize) -> Vec<Complex64> {
             (0..window.len())
                 .map(|j| {
                     let angle = -TAU * (m as f64) * (j as f64) / n;
-                    Complex64::new(angle.cos(), angle.sin()) / n.sqrt()
+                    Complex64::new(libm::cos(angle), libm::sin(angle)) / n.sqrt()
                 })
                 .collect()
         })
@@ -132,7 +132,7 @@ pub fn encode_corpus(
             (0..n_modes)
                 .map(|j| {
                     let angle = -TAU * (m as f64) * (j as f64) / n;
-                    Complex64::new(angle.cos(), angle.sin()) / n.sqrt()
+                    Complex64::new(libm::cos(angle), libm::sin(angle)) / n.sqrt()
                 })
                 .collect()
         })

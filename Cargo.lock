@@ -69,7 +69,7 @@ dependencies = [
 
 [[package]]
 name = "aria-engine"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aria-engine-backends",
  "aria-engine-core",
@@ -85,7 +85,7 @@ dependencies = [
 
 [[package]]
 name = "aria-engine-backends"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aria-engine-core",
  "libm",
@@ -105,7 +105,7 @@ dependencies = [
 
 [[package]]
 name = "aria-engine-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "log",
  "num-complex",
@@ -121,7 +121,7 @@ dependencies = [
 
 [[package]]
 name = "aria-engine-py"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aria-engine-backends",
  "aria-engine-core",
@@ -132,7 +132,7 @@ dependencies = [
 
 [[package]]
 name = "aria-engine-wasm"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "aria-engine-backends",
  "aria-engine-core",

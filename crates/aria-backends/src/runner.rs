@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 use crate::optical::RefOptical;
 use crate::spectral::SpectralReport;
 use crate::trained::TrainedPredictor;
-use crate::{SimDiffuser, SimGraphBackend, SimOptical, SimPredictor};
+use crate::{SimDiffuser, SimGraphBackend, SimPredictor};
 
 /// The predictor a reference run uses: the Phase 1 stub, or Phase 3 weights.
 ///
@@ -84,7 +84,7 @@ pub fn canonical_psi0(n_modes: usize) -> Vec<Complex64> {
     let psi: Vec<Complex64> = (0..n_modes)
         .map(|i| {
             let phase = (i as f64) * 0.12345;
-            Complex64::new(phase.cos(), phase.sin())
+            Complex64::new(libm::cos(phase), libm::sin(phase))
         })
         .collect();
     let norm: f64 = psi.iter().map(num_complex::Complex::norm_sqr).sum::<f64>().sqrt();
@@ -248,7 +248,7 @@ pub fn latents_with(
 /// including inside WASM, where a panic is a hard trap. The 𝒮-domain clauses
 /// live in [`AriaConfig::validate`] (called first); what remains here are the
 /// backend-specific checks that hold regardless of the spec domain.
-fn validate_config(config: &AriaConfig, predictor: &RefPredictor) -> Result<(), AriaError> {
+pub(crate) fn validate_config(config: &AriaConfig, predictor: &RefPredictor) -> Result<(), AriaError> {
     if !config.eps.is_finite() || config.eps < 0.0 {
         return Err(AriaError::Config(format!(
             "eps must be finite and ≥ 0, got {}",
@@ -317,7 +317,13 @@ pub fn optical_dataset(
 ) -> OpticalDataset {
     use aria_engine_core::engine::OpticalBackend;
 
-    let optical = SimOptical::with_seed(n_modes, seed);
+    // Q-2026-08-13-5: follow the same backend rule as inference — FFT at
+    // N ≥ 256, Householder below. The Wilcoxon quality gate uses real
+    // spectral-DFT text (`aria dataset --input`), not this synthetic path.
+    let mut cfg = AriaConfig::test_config();
+    cfg.n_modes = n_modes;
+    cfg.seed = Some(seed);
+    let optical = crate::optical::RefOptical::for_config(&cfg, seed);
 
     let trajectories = (0..count)
         .map(|k| {
@@ -325,7 +331,7 @@ pub fn optical_dataset(
             let psi: Vec<Complex64> = (0..n_modes)
                 .map(|i| {
                     let phase = (i as f64) * 0.12345 + offset;
-                    Complex64::new(phase.cos(), phase.sin())
+                    Complex64::new(libm::cos(phase), libm::sin(phase))
                 })
                 .collect();
             let norm: f64 = psi.iter().map(num_complex::Complex::norm_sqr).sum::<f64>().sqrt();

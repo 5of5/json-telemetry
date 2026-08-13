@@ -495,6 +495,14 @@ where
         invariants::check_all(state, residual, self.config.eps, self.config.eps_energy, self.config.n_modes, self.config.latent_dim)
     }
 
+    /// JEPA residual Res(ψ, z, t) = d(z, P(I(ψ), a_t)).
+    ///
+    /// Public so the WS6 streaming verifier can audit Inv2 / X4 without
+    /// retaining a full in-memory [`crate::trace::Trace`].
+    pub fn residual(&self, state: &State, a: Condition) -> f64 {
+        self.compute_residual(state, a)
+    }
+
     /// Compute JEPA residual: Res(ψ, z, t) = d(z, P(I(ψ), a_t))
     fn compute_residual(&self, state: &State, a: Condition) -> f64 {
         let embedded = self.predictor.embed(&state.psi);
