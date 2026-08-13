@@ -69,6 +69,7 @@ impl Diffuser for SimDiffuser {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use aria_engine_core::graph::{EdgeType, GraphOp, NodeType};
 
     #[test]
     fn identity_diffuse() {
@@ -92,9 +93,27 @@ mod tests {
     fn graph_conditioned_diffuse_changes_z() {
         let d = SimDiffuser::new(4);
         let mut g = Graph::empty();
-        g.add_node("a".into(), vec![1.0, 0.0, 0.0, 0.0], None);
-        g.add_node("b".into(), vec![0.0, 1.0, 0.0, 0.0], None);
-        g.add_edge("a".into(), "b".into(), "morph".into());
+        for (id, emb) in [(0u64, [1.0, 0.0, 0.0, 0.0]), (1, [0.0, 1.0, 0.0, 0.0])] {
+            g.apply(
+                &GraphOp::AddNode {
+                    id,
+                    ntype: NodeType::Observation,
+                    emb: emb.to_vec(),
+                    ts: id,
+                },
+                4,
+            )
+            .unwrap();
+        }
+        g.apply(
+            &GraphOp::AddEdge {
+                from: 0,
+                to: 1,
+                etype: EdgeType::CausallyPrecedes,
+            },
+            4,
+        )
+        .unwrap();
 
         let z = vec![1.0; 4];
         let z2 = d.diffuse(&g, &z, DiffPolicy::GraphConditioned);

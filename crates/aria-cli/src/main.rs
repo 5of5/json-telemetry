@@ -9,10 +9,14 @@
 //! used by the Python extension and the WASM module (Phase 2 parity).
 
 use aria_engine_backends::runner::{self, canonical_init, sim_engine, RefPredictor};
-use aria_engine_backends::{SimPredictor, TrainedPredictor};
+use aria_engine_backends::{
+    fit_growth_exponent, log_checkpoints, HnswIndex, HnswParams, SimPredictor, TrainedPredictor,
+    VectorIndex,
+};
 use aria_engine_core::action::Action;
 use aria_engine_core::config::AriaConfig;
 use aria_engine_core::gates::{Gate, GateConfig};
+use aria_engine_core::policy::MatchPolicy;
 use aria_engine_core::scheduler::Scheduler;
 use clap::{Parser, Subcommand};
 use std::fs;
@@ -162,6 +166,19 @@ enum Commands {
         /// Also measure with every operating gate enabled
         #[arg(long)]
         with_gates: bool,
+
+        /// ℙ5 retrieval bench (plan WS3): comma-separated |V| values. Builds a
+        /// metric index of that many points and reports p50/p99 nearest-
+        /// neighbour latency. The Phase-3 gate is < 250 µs at |V| = 10⁶.
+        /// Native only — memory-heavy at 10⁶.
+        #[arg(long)]
+        graph: Option<String>,
+
+        /// 𝕃3 growth bench (plan WS3): run this many Φ-cycles under
+        /// `match_policy = merge` and fit β in |V| = O(T^β) by OLS on
+        /// (ln T, ln |V|). Spec §8 predicate 3 requires β ≤ 1.
+        #[arg(long, default_value = "0")]
+        beta_cycles: u64,
     },
 
     /// Export a training dataset for the Phase 3 JEPA loop.
@@ -460,6 +477,8 @@ fn real_main(cli: Cli) -> Result<(), String> {
             latent_dim,
             steps,
             with_gates,
+            graph,
+            beta_cycles,
         } => {
             let sizes: Vec<usize> = n_modes
                 .split(',')
@@ -530,6 +549,13 @@ fn real_main(cli: Cli) -> Result<(), String> {
                     t1024 / t256
                 );
             }
+
+            if let Some(sizes) = graph {
+                bench_retrieval(&sizes, latent_dim)?;
+            }
+            if beta_cycles > 0 {
+                bench_growth(&base, beta_cycles)?;
+            }
             Ok(())
         }
 
@@ -599,4 +625,159 @@ fn parse_action(s: &str) -> Result<Action, String> {
             "unknown action '{other}' (expected OpticalStep|Predict|Match|Diffuse|Stutter)"
         )),
     }
+}
+
+/// ℙ5 retrieval bench (plan WS3): nearest-neighbour latency versus `|V|`.
+///
+/// Reports p50/p99 rather than a mean because the Phase-3 gate is a tail
+/// guarantee (< 250 µs at `|V| = 10⁶`), and a mean hides the tail that matters.
+/// Also prints distance evaluations per query — the algorithmic quantity behind
+/// the `O(log |V|)` claim, which unlike wall-clock does not depend on the host.
+fn bench_retrieval(sizes: &str, dim: usize) -> Result<(), String> {
+    let sizes: Vec<usize> = sizes
+        .split(',')
+        .map(|s| {
+            s.trim()
+                .parse::<usize>()
+                .map_err(|e| format!("bad --graph value '{}': {}", s.trim(), e))
+        })
+        .collect::<Result<_, _>>()?;
+
+    let params = HnswParams::default();
+    println!(
+        "\nℙ5 retrieval bench — dim(Z) = {dim}, M = {}, ef_add = {}, ef_search = {} (gate: p99 < 250 µs at |V| = 10⁶)",
+        params.connectivity, params.expansion_add, params.expansion_search
+    );
+    println!(
+        "{:>10}  {:>12}  {:>12}  {:>12}  {:>12}  {:>10}",
+        "|V|", "build (s)", "p50 (µs)", "p99 (µs)", "max (µs)", "visited"
+    );
+
+    for n in sizes {
+        // Points are streamed into the index: keeping a second copy of 10⁶ ×
+        // dim f64 alongside the index would double an already heavy footprint.
+        let mut lcg = 0x2545_F491_4F6C_DD1Du64;
+        let mut next = || {
+            lcg = lcg
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            ((lcg >> 11) as f64) / ((1u64 << 53) as f64)
+        };
+
+        let t_build = std::time::Instant::now();
+        let mut index = HnswIndex::with_params(dim, params);
+        for id in 0..n as u64 {
+            let v: Vec<f64> = (0..dim).map(|_| next()).collect();
+            index.add(id, &v);
+        }
+        let build_s = t_build.elapsed().as_secs_f64();
+
+        let queries: Vec<Vec<f64>> = (0..1000)
+            .map(|_| (0..dim).map(|_| next()).collect())
+            .collect();
+
+        // Fault in the query path (thread-local stamp, vector pages the
+        // search will actually touch) so p50/p99 measure retrieval, not
+        // first-touch page faults. The Phase-3 gate is a hot-query tail.
+        for q in queries.iter().take(50) {
+            std::hint::black_box(index.nearest_probed(q, 10));
+        }
+
+        let mut micros = Vec::with_capacity(queries.len());
+        let mut visited_total = 0usize;
+        for q in &queries {
+            let t = std::time::Instant::now();
+            let (results, stats) = index.nearest_probed(q, 10);
+            micros.push(t.elapsed().as_secs_f64() * 1e6);
+            visited_total += stats.visited;
+            std::hint::black_box(&results);
+        }
+        micros.sort_by(f64::total_cmp);
+        // Quantile lookup: `q ∈ [0, 1]` maps to a sorted-index. The clamp
+        // guards both ends; the explicit `min` afterwards is belt-and-braces
+        // against the empty-vector edge case (queries is empty only if the
+        // caller passed `--graph ""`, which we already reject at parse time).
+        let pick = |q: f64| {
+            #[allow(
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss,
+                reason = "q is clamped to [0,1] and micros.len() ≤ 1000, so the product is a non-negative finite value well below 2^53"
+            )]
+            let idx = (micros.len() as f64 * q.clamp(0.0, 1.0)) as usize;
+            micros[idx.min(micros.len() - 1)]
+        };
+
+        println!(
+            "{:>10}  {:>12.2}  {:>12.1}  {:>12.1}  {:>12.1}  {:>10}",
+            n,
+            build_s,
+            pick(0.50),
+            pick(0.99),
+            micros[micros.len() - 1],
+            visited_total / queries.len()
+        );
+    }
+    Ok(())
+}
+
+/// 𝕃3 growth bench (plan WS3): fit β in `|V| = O(T^β)` under the merge policy.
+///
+/// Runs the real engine — not a synthetic point stream — because the claim is
+/// about latents the Φ-cycle actually produces, and a bounded 𝒵 is exactly what
+/// makes the sphere-packing argument bite.
+fn bench_growth(base: &AriaConfig, cycles: u64) -> Result<(), String> {
+    let mut config = base.clone();
+    config.match_policy = MatchPolicy::Merge;
+    config.validate().map_err(|e| e.to_string())?;
+
+    let engine = sim_engine(config.clone());
+    let mut state = canonical_init(&engine, config.condition).map_err(|e| e.to_string())?;
+
+    let checkpoints = log_checkpoints(cycles);
+    let mut samples: Vec<(u64, usize)> = Vec::new();
+    let t_run = std::time::Instant::now();
+
+    for cycle in 1..=cycles {
+        state = engine
+            .step_phi(state, config.condition)
+            .map_err(|e| format!("Φ-cycle {cycle} failed: {e}"))?;
+        if checkpoints.contains(&cycle) {
+            samples.push((cycle, state.g.node_count()));
+        }
+    }
+    let run_s = t_run.elapsed().as_secs_f64();
+
+    println!(
+        "\n𝕃3 growth bench — match_policy = merge, τ = {}, {cycles} Φ-cycles in {run_s:.2} s",
+        config.merge_tau
+    );
+    println!("{:>10}  {:>10}", "T", "|V|");
+    for (t, v) in &samples {
+        println!("{t:>10}  {v:>10}");
+    }
+
+    let report = engine.check(&state, config.condition);
+    if !report.all_ok() {
+        return Err(format!(
+            "growth bench ended with invariant failures: {:?}",
+            report.failures()
+        ));
+    }
+
+    match fit_growth_exponent(&samples) {
+        Some(fit) => {
+            println!(
+                "β = {:.4} (R² = {:.4}, {} samples) — spec §8 predicate 3 requires β ≤ 1",
+                fit.beta, fit.r_squared, fit.samples
+            );
+            if fit.beta > 1.0 {
+                return Err(format!(
+                    "measured β = {:.4} > 1: growth is not sub-linear",
+                    fit.beta
+                ));
+            }
+        }
+        None => return Err("not enough checkpoints to fit β".into()),
+    }
+    Ok(())
 }

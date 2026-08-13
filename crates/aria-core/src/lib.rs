@@ -24,7 +24,9 @@ pub use config::AriaConfig;
 pub use engine::Engine;
 pub use error::{AriaError, InvViolation};
 pub use gates::{Gate, GateConfig, GateReport};
-pub use graph::{Graph, GraphNode};
+pub use graph::{
+    EdgeType, Graph, GraphEdge, GraphNode, GraphOp, GraphOpError, NodeId, NodeType, UndoOp,
+};
 pub use invariants::InvariantReport;
 pub use policy::{DiffPolicy, MatchPolicy};
 pub use state::State;

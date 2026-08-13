@@ -373,8 +373,38 @@ impl GateMonitor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::graph::Graph;
+    use crate::graph::{EdgeType, Graph, GraphOp, NodeId, NodeType};
     use num_complex::Complex64;
+
+    /// Add a node with a `dim`-dimensional zero embedding.
+    ///
+    /// Deliberately committed through the op alphabet so these fixtures
+    /// exercise the same path the engine does; `emb_dim` may disagree with the
+    /// state's dim(Z) on purpose — that is what Inv10 is asked to catch.
+    fn add_test_node(g: &mut Graph, id: NodeId, emb_dim: usize) {
+        g.apply(
+            &GraphOp::AddNode {
+                id,
+                ntype: NodeType::Observation,
+                emb: vec![0.0; emb_dim],
+                ts: 0,
+            },
+            emb_dim,
+        )
+        .expect("fixture node must apply");
+    }
+
+    fn add_test_edge(g: &mut Graph, from: NodeId, to: NodeId) {
+        g.apply(
+            &GraphOp::AddEdge {
+                from,
+                to,
+                etype: EdgeType::CausallyPrecedes,
+            },
+            0,
+        )
+        .expect("fixture edge must apply");
+    }
 
     fn state(latent_dim: usize) -> State {
         State {
@@ -456,10 +486,10 @@ mod tests {
     fn inv7_flags_a_cyclic_match_result() {
         let mut m = monitor(&[Gate::Inv7MergeAcyclicity]);
         let mut s = state(2);
-        s.g.add_node("a".into(), vec![0.0, 0.0], None);
-        s.g.add_node("b".into(), vec![0.0, 0.0], None);
-        s.g.add_edge("a".into(), "b".into(), "morph".into());
-        s.g.add_edge("b".into(), "a".into(), "morph".into());
+        add_test_node(&mut s.g, 1, 2);
+        add_test_node(&mut s.g, 2, 2);
+        add_test_edge(&mut s.g, 1, 2);
+        add_test_edge(&mut s.g, 2, 1);
         m.observe(Action::Match, &s, 0.0, 1.0);
         assert!(m.finish().breaches.iter().any(|b| b.gate == "inv7"));
     }
@@ -510,7 +540,7 @@ mod tests {
         let mut m = monitor(&[Gate::Inv10MatchWellTyped]);
         let mut s = state(4);
         // Embedding dimension 2 while dim(Z) = 4.
-        s.g.add_node("a".into(), vec![0.0, 0.0], None);
+        add_test_node(&mut s.g, 1, 2);
         m.observe(Action::Match, &s, 0.0, 1.0);
         assert!(m.finish().breaches.iter().any(|b| b.gate == "inv10"));
     }

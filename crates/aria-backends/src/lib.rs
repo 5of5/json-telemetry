@@ -9,6 +9,8 @@
 pub mod data;
 pub mod diffuser;
 pub mod graph;
+pub mod growth;
+pub mod index;
 pub mod optical;
 pub mod predictor;
 pub mod runner;
@@ -18,6 +20,8 @@ pub mod trained;
 pub use data::{dataset_from_bytes, dataset_from_file, encode_corpus, encode_window, FieldDataset};
 pub use diffuser::SimDiffuser;
 pub use graph::SimGraphBackend;
+pub use growth::{fit_growth_exponent, log_checkpoints, GrowthFit};
+pub use index::{HnswIndex, HnswParams, NearestStats, VectorIndex};
 pub use optical::{FftOptical, RefOptical, SimOptical};
 pub use predictor::SimPredictor;
 pub use runner::{

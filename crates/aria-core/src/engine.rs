@@ -11,7 +11,7 @@ use crate::condition::Condition;
 use crate::config::AriaConfig;
 use crate::error::AriaError;
 use crate::gates::{GateMonitor, GateReport};
-use crate::graph::Graph;
+use crate::graph::{Graph, GraphOp, UndoOp};
 use crate::invariants;
 use crate::invariants::InvariantReport;
 use crate::policy::{DiffPolicy, MatchPolicy};
@@ -43,17 +43,43 @@ pub trait Predictor: Debug + Send + Sync {
 }
 
 /// Graph backend trait — PRD §5.3
+///
+/// # Ops, not graphs (plan WS3)
+///
+/// v0.1.0 returned a whole new `Graph`, which cost two clones of `G` per Match
+/// and made every run `O(T²)` in graph size. A backend now *proposes* the
+/// atomic ops of `ED(G ⊕ z, G*)` and the engine applies them transactionally
+/// against a snapshot journal (𝕃6), so a step costs the size of its edit, not
+/// the size of memory.
 pub trait GraphBackend: Debug + Send + Sync {
-    /// Edit graph: G' = ED(G ⊕ z, policy, G*)
-    fn edit(
+    /// Propose the ops realizing `G' = ED(G ⊕ z, policy, G*)` at clock `t`.
+    ///
+    /// Absorbing `z` is part of Match, so the ops include it: a policy that
+    /// merges `z` into an existing node emits `MergeNodes`, one that appends
+    /// emits `AddNode`. Allocate new ids from [`Graph::next_id`].
+    fn edit_ops(
         &self,
         g: &Graph,
         z: &[f64],
         policy: MatchPolicy,
         target: Option<&Graph>,
-    ) -> Graph;
+        t: u64,
+    ) -> Vec<GraphOp>;
+
     /// GraphOK check
     fn ok(&self, g: &Graph) -> bool;
+
+    /// Mirror committed ops into auxiliary structures (e.g. a vector index).
+    ///
+    /// `g` is the **post**-state, so a merge's EMA-updated embedding is
+    /// readable. Default: nothing to mirror.
+    fn commit_ops(&self, _ops: &[GraphOp], _g: &Graph) {}
+
+    /// Mirror a rollback, so auxiliary structures never diverge from `G`.
+    ///
+    /// `journal` is the undo record that was just replayed; `g` is the restored
+    /// graph. Default: nothing to mirror.
+    fn revert_ops(&self, _journal: &[UndoOp], _g: &Graph) {}
 }
 
 /// Diffuser backend trait — PRD §5.3
@@ -234,32 +260,41 @@ where
 
             Action::Match => {
                 // G' = ED(G ⊕ z, G*); UNCHANGED ⟨ψ, z, t⟩ — FORMAL_SPEC §6.3
-                let prev_g = state.g.clone();
+                //
+                // Transactional, clone-free (plan WS3): the backend proposes
+                // atomic ops, `apply_ops` commits them all-or-nothing against a
+                // snapshot journal, and any failure below replays that journal.
+                // `panic = "abort"` in release forbids unwind-based cleanup, so
+                // every rollback here is explicit data.
                 let prev_prev_res = state.prev_res;
                 let pre_residual = self.compute_residual(&state, a);
 
-                let mut g_with_z = state.g.clone();
-                g_with_z.add_node(
-                    format!("z_{}", state.t),
-                    state.z.clone(),
-                    Some("latent".into()),
-                );
-
-                // Enforce max graph size
-                if g_with_z.size() > self.config.max_graph_size {
-                    return Err(AriaError::Schedule(format!(
-                        "graph size {} exceeds max {}",
-                        g_with_z.size(),
-                        self.config.max_graph_size
-                    )));
-                }
-
-                state.g = self.graph_backend.edit(
-                    &g_with_z,
+                let ops = self.graph_backend.edit_ops(
+                    &state.g,
                     &state.z,
                     self.config.match_policy,
                     None,
+                    state.t,
                 );
+
+                let journal = state
+                    .g
+                    .apply_ops(&ops, self.config.latent_dim)
+                    .map_err(|e| AriaError::Backend(format!("Match op refused: {e}")))?;
+
+                // Enforce max graph size — the projected size is the committed
+                // one, so an over-cap edit is rolled back rather than pre-guessed.
+                if state.g.size() > self.config.max_graph_size {
+                    let size = state.g.size();
+                    state.g.undo_ops(&journal);
+                    self.graph_backend.revert_ops(&journal, &state.g);
+                    return Err(AriaError::Schedule(format!(
+                        "graph size {} exceeds max {}",
+                        size, self.config.max_graph_size
+                    )));
+                }
+
+                self.graph_backend.commit_ops(&ops, &state.g);
                 state.prev_res = pre_residual;
 
                 let post_residual = self.compute_residual(&state, a);
@@ -276,7 +311,8 @@ where
                         &report, action, state.energy(), state.energy_0,
                         post_residual, state.prev_res, self.config.eps,
                     ) {
-                        state.g = prev_g;
+                        state.g.undo_ops(&journal);
+                        self.graph_backend.revert_ops(&journal, &state.g);
                         state.prev_res = prev_prev_res;
                         return Err(AriaError::InvariantViolation(v));
                     }
@@ -425,5 +461,14 @@ where
     /// Access config.
     pub fn config(&self) -> &AriaConfig {
         &self.config
+    }
+
+    /// Access the graph backend.
+    ///
+    /// Read-only: the backend owns policy-layer state (the metric index) whose
+    /// consistency with `G` is maintained through `commit_ops`/`revert_ops`, so
+    /// callers may inspect it but never mutate it behind the engine's back.
+    pub fn graph_backend(&self) -> &GB {
+        &self.graph_backend
     }
 }

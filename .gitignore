@@ -46,7 +46,7 @@ env/
 # --- Rust (future runtime) ---
 target/
 **/*.rs.bk
-
+docs/CHANGELOG.log
 # --- Node / WASM tooling ---
 node_modules/
 www/pkg/
