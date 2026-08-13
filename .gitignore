@@ -19,6 +19,13 @@ The_Aria_Protocol_Graph-JEPA-Foundational-Spec.pdf
 assets/aria.mmd
 assets/aria-v0.1.0.mmd
 plan_v0.2.0.md
+plan_v0.2.0_remaining_tasks.md
+# Python runtime + training (private; aria-py crate stays tracked via git
+# history — gitignore only blocks NEW untracked files, not existing ones).
+# WS5 will need to force-add new test files: `git add -f python/tests/test_training.py`
+/python/
+# Verification scripts (private; existing tracked scripts remain tracked).
+/scripts/
 # Root-level acceptance-test corpus only. A bare `tests` pattern would also
 # ignore crates/*/tests (the Rust integration suites) and python/tests —
 # new test files written during v0.2.0 execution must be trackable.
@@ -71,7 +78,6 @@ build/
 # safety proofs, planning docs. None are published to GitHub.
 docs
 spec
-python/tests
 
 # NOTE: Cargo.lock IS tracked on purpose.
 # This workspace produces binaries (aria-cli, aria-wasm cdylib), so per

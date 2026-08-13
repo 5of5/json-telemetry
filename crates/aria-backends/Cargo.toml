@@ -34,6 +34,11 @@ rustfft = { workspace = true }
 # Compiling the same deterministic implementation into the shared rlib makes
 # every surface bit-identical; WASM gets the same code for free.
 libm.workspace = true
+# Plan WS4: zero-copy weight files for the decoupled readout (𝔸5). Pure Rust,
+# wasm32-clean, no OS entropy. tokenizers (HF) stays unused — its default
+# onig backend is C and would fail the same wasm32 wall WS3 hit; BPE is
+# implemented in-repo (tokenizer.rs) so every surface compiles.
+safetensors = { workspace = true }
 # usearch is the spec-normative §5.3 retrieval engine, kept native-only (C++
 # FFI does not compile to wasm32-unknown-unknown and cross-platform
 # bit-determinism is unproven — Q-2026-08-12-5). OFF by default; the WS3

@@ -6,7 +6,7 @@
 
 use aria_engine_core::condition::Condition;
 use aria_engine_core::config::AriaConfig;
-use aria_engine_core::engine::{Engine, Predictor};
+use aria_engine_core::engine::{Engine, GraphBackend, Predictor};
 use aria_engine_core::error::AriaError;
 use aria_engine_core::gates::GateReport;
 use aria_engine_core::graph::Graph;
@@ -143,23 +143,21 @@ pub fn run(config: AriaConfig, steps: u64) -> Result<RunOutcome, AriaError> {
     run_with(config, steps, predictor)
 }
 
-/// Run the reference engine with an explicit predictor backend.
-pub fn run_with(
+/// [`run_with`] starting from a caller-supplied `G₀` (Init, not a new action).
+pub fn run_with_graph(
     config: AriaConfig,
     steps: u64,
     predictor: RefPredictor,
+    g0: Graph,
 ) -> Result<RunOutcome, AriaError> {
-    // The 𝒮 hard bounds gate every surface at its single shared entry —
-    // CLI, Python, and WASM all funnel through here (plan WS0).
     config.validate()?;
     validate_config(&config, &predictor)?;
 
     let condition = config.condition;
     let schedule = config.schedule.clone();
     let stutter_k = config.stutter_k;
+    let latent_dim = config.latent_dim;
 
-    // The Phase-1 σ audit travels on the summary; it must be sampled before
-    // the predictor moves into the engine.
     let spectral_report = match &predictor {
         RefPredictor::Trained(p) => Some(
             p.spectral_report()
@@ -169,7 +167,13 @@ pub fn run_with(
     };
 
     let engine = engine_with(config, predictor);
-    let state = canonical_init(&engine, condition)?;
+    if !engine.graph_backend().ok(&g0) {
+        return Err(AriaError::Config(format!(
+            "seed graph fails GraphOK at latent_dim={latent_dim}"
+        )));
+    }
+    let psi0 = canonical_psi0(engine.config().n_modes);
+    let state = engine.init(psi0, g0, condition)?;
 
     let mut scheduler =
         Scheduler::from_string(&schedule, stutter_k).map_err(AriaError::Schedule)?;
@@ -196,6 +200,45 @@ pub fn run_with(
         trace,
         state: final_state,
     })
+}
+
+/// Run the reference engine with an explicit predictor backend.
+pub fn run_with(
+    config: AriaConfig,
+    steps: u64,
+    predictor: RefPredictor,
+) -> Result<RunOutcome, AriaError> {
+    run_with_graph(config, steps, predictor, Graph::empty())
+}
+
+/// Replay a run and return the post-step latent after every action.
+///
+/// This is the only seam `aria emit` uses to recover `z`. It does not write
+/// `z` into the JSONL (goldens stay byte-stable) and it cannot feed a
+/// readout gradient — or a readout output — back into Φ (𝕃5).
+pub fn latents_of(config: AriaConfig, steps: u64) -> Result<Vec<Vec<f64>>, AriaError> {
+    let predictor = RefPredictor::Sim(SimPredictor::new(config.n_modes, config.latent_dim));
+    latents_with(config, steps, predictor)
+}
+
+/// [`latents_of`] with an explicit predictor (trained replay).
+pub fn latents_with(
+    config: AriaConfig,
+    steps: u64,
+    predictor: RefPredictor,
+) -> Result<Vec<Vec<f64>>, AriaError> {
+    config.validate()?;
+    validate_config(&config, &predictor)?;
+    let condition = config.condition;
+    let schedule = config.schedule.clone();
+    let stutter_k = config.stutter_k;
+    let engine = engine_with(config, predictor);
+    let state = canonical_init(&engine, condition)?;
+    let mut scheduler =
+        Scheduler::from_string(&schedule, stutter_k).map_err(AriaError::Schedule)?;
+    let (_, _, _, latents) =
+        engine.run_monitored_with_latents(state, &mut scheduler, steps, condition)?;
+    Ok(latents)
 }
 
 /// Validate a config before any backend is constructed.

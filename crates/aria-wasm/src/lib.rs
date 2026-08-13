@@ -51,6 +51,28 @@ pub fn run_trace_jsonl(config_json: Option<String>, steps: u32) -> Result<String
     Ok(outcome.trace.to_jsonl())
 }
 
+/// Decode a completed run to discrete token ids (𝔸5 / 𝕃5).
+///
+/// Replays Φ from `config_json` (defaults if omitted) and applies the
+/// `aria-readout-v1` weights in `readout`. Returns one id per step. The
+/// readout cannot write back into the engine — this export is an I/O sink.
+#[wasm_bindgen(js_name = emitIds)]
+pub fn emit_ids(
+    config_json: Option<String>,
+    steps: u32,
+    readout: &[u8],
+) -> Result<Vec<u32>, JsValue> {
+    use aria_engine_backends::{latents_of, Readout};
+    let config = parse_config(config_json)?;
+    let zs = latents_of(config, u64::from(steps)).map_err(err)?;
+    let Readout::Discrete(head) = Readout::from_bytes(readout).map_err(err)? else {
+        return Err(err("emitIds requires a discrete readout"));
+    };
+    zs.iter()
+        .map(|z| head.decode_id(z).map_err(err))
+        .collect()
+}
+
 /// Parse a TOML config into the JSON shape accepted by [`run`].
 #[wasm_bindgen(js_name = configFromToml)]
 pub fn config_from_toml(toml_src: &str) -> Result<JsValue, JsValue> {

@@ -19,6 +19,10 @@ use crate::scheduler::Scheduler;
 use crate::state::State;
 use crate::trace::Trace;
 
+/// [`Engine::run_monitored_with_latents`] return type — factored out so the
+/// signature stays inside clippy's type-complexity budget.
+pub type MonitoredLatents = (State, Trace, GateReport, Vec<Vec<f64>>);
+
 /// Optical backend trait — PRD §5.3
 pub trait OpticalBackend: Debug + Send + Sync {
     /// Apply unitary step: ψ' = U_t(ψ)
@@ -443,6 +447,46 @@ where
         }
 
         Ok((state, trace, monitor.finish()))
+    }
+
+    /// Same loop as [`Self::run_monitored`], plus the post-step latent `z`.
+    ///
+    /// Used by the post-hoc `aria emit` surface to recover the z-sequence of
+    /// a completed run without writing `z` into the JSONL — so the default
+    /// trace stays byte-stable and emit cannot feed anything back into Φ.
+    /// Collecting `z` is state observation, not a Φ operator.
+    pub fn run_monitored_with_latents(
+        &self,
+        mut state: State,
+        scheduler: &mut Scheduler,
+        steps: u64,
+        a: Condition,
+    ) -> Result<MonitoredLatents, AriaError> {
+        let mut trace = Trace::new(self.config.n_modes, self.config.latent_dim, self.config.eps);
+        let mut monitor = GateMonitor::new(self.config.gates.clone());
+        let mut latents = Vec::with_capacity(usize::try_from(steps).unwrap_or(0));
+
+        for _ in 0..steps {
+            let action = scheduler.next_action_budgeted();
+            let t_before = state.t;
+
+            state = self.apply(state, action, a)?;
+
+            let residual = self.compute_residual(&state, a);
+            let energy = state.energy();
+            trace.push(
+                t_before,
+                action,
+                residual,
+                energy,
+                state.g.size(),
+                &format!("{a:?}").to_lowercase(),
+            );
+            monitor.observe(action, &state, residual, self.config.eps);
+            latents.push(state.z.clone());
+        }
+
+        Ok((state, trace, monitor.finish(), latents))
     }
 
     /// Check all invariants on the current state without applying an action.

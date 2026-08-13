@@ -7,26 +7,36 @@
 //! extension, and the WASM module (Phase 2 parity).
 
 pub mod data;
+pub mod dev_seed;
 pub mod diffuser;
 pub mod graph;
 pub mod growth;
 pub mod index;
 pub mod optical;
 pub mod predictor;
+pub mod readout;
 pub mod runner;
 pub mod spectral;
+pub mod tokenizer;
 pub mod trained;
 
 pub use data::{dataset_from_bytes, dataset_from_file, encode_corpus, encode_window, FieldDataset};
+pub use dev_seed::{graph_from_dev_seed, load_seed_graph, DevSeed, DEV_SEED_FORMAT};
 pub use diffuser::SimDiffuser;
 pub use graph::SimGraphBackend;
 pub use growth::{fit_growth_exponent, log_checkpoints, GrowthFit};
 pub use index::{HnswIndex, HnswParams, NearestStats, VectorIndex};
 pub use optical::{FftOptical, RefOptical, SimOptical};
 pub use predictor::SimPredictor;
-pub use runner::{
-    engine_with, run, run_with, sim_engine, RefPredictor, RunOutcome, RunSummary, SimEngine,
+pub use readout::{
+    ContinuousReadout, DiscreteReadout, Readout, ReadoutError, ReadoutKind, READOUT_FORMAT,
+    VOCAB_MAX, VOCAB_MIN,
 };
+pub use runner::{
+    engine_with, latents_of, run, run_with, run_with_graph, sim_engine, RefPredictor, RunOutcome,
+    RunSummary, SimEngine,
+};
+pub use tokenizer::{BpeTokenizer, TOKENIZER_FORMAT};
 pub use spectral::{
     project_spectral, power_iteration, Matrix, SpectralError, SpectralReport, DEFAULT_ITERATIONS,
 };

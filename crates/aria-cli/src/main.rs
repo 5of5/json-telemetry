@@ -100,6 +100,23 @@ enum Commands {
         /// Disable strict invariant checking
         #[arg(long)]
         no_strict: bool,
+
+        /// Seed G₀ from a JSON file (`aria-dev-seed-v1` or a serialized Graph).
+        /// Init only — not a new action.
+        #[arg(long)]
+        seed_graph: Option<PathBuf>,
+
+        /// Write the final graph JSON after the run (outside Φ).
+        #[arg(long)]
+        export_graph: Option<PathBuf>,
+
+        /// Match policy: identity | one_edit | merge | rebuild_gstar
+        #[arg(long)]
+        match_policy: Option<String>,
+
+        /// Merge distance τ (only with `--match-policy merge`)
+        #[arg(long)]
+        merge_tau: Option<f64>,
     },
 
     /// Apply a single step to a state
@@ -216,6 +233,40 @@ enum Commands {
         #[arg(short, long)]
         output: Option<PathBuf>,
     },
+
+    /// Decode a completed run's z-sequence (𝔸5 / 𝕃5).
+    ///
+    /// Reads a JSONL trace and a readout weight file. Recovers `z` by
+    /// replaying Φ from the trace header + `--config` (default config if
+    /// omitted). Never writes back into the engine — emit is an I/O sink.
+    Emit {
+        /// JSONL trace from `aria run --output`
+        #[arg(long)]
+        trace: PathBuf,
+
+        /// `aria-readout-v1` safetensors (discrete or continuous)
+        #[arg(long)]
+        readout: PathBuf,
+
+        /// Optional `aria-tokenizer-v1` JSON — maps discrete ids to pieces
+        #[arg(long)]
+        tokenizer: Option<PathBuf>,
+
+        /// Write JSONL here (stdout when omitted)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
+        /// Also dump the recovered z-sequence (WS5 ℒ_NLL input)
+        #[arg(long)]
+        dump_latents: Option<PathBuf>,
+
+        /// Write a seeded discrete head to `--readout` and exit (no Φ touch).
+        /// Seed is the MMIX LCG start; dim and |V_o| come from the trace /
+        /// config. Used to mint an `aria-readout-v1` file before a trained
+        /// head exists (WS5).
+        #[arg(long)]
+        init_seeded: Option<u64>,
+    },
 }
 
 fn main() -> ExitCode {
@@ -261,6 +312,10 @@ fn real_main(cli: Cli) -> Result<(), String> {
             gates,
             strict_gates,
             no_strict,
+            seed_graph,
+            export_graph,
+            match_policy,
+            merge_tau,
         } => {
             let mut config = base;
             if let Some(v) = schedule {
@@ -292,6 +347,12 @@ fn real_main(cli: Cli) -> Result<(), String> {
                 config.gates.enabled = GateConfig::parse_list(list)?;
                 config.gates.stutter_k = config.stutter_k;
             }
+            if let Some(ref p) = match_policy {
+                config.match_policy = parse_match_policy(p)?;
+            }
+            if let Some(t) = merge_tau {
+                config.merge_tau = t;
+            }
 
             let predictor = match predictor {
                 Some(ref path) => {
@@ -312,11 +373,31 @@ fn real_main(cli: Cli) -> Result<(), String> {
             };
 
             eprintln!(
-                "Aria run: {} steps, schedule={}, eps={}, N={}, dim(Z)={}, condition={:?}",
-                steps, config.schedule, config.eps, config.n_modes, config.latent_dim, config.condition
+                "Aria run: {} steps, schedule={}, eps={}, N={}, dim(Z)={}, condition={:?}, match={:?}",
+                steps, config.schedule, config.eps, config.n_modes, config.latent_dim, config.condition, config.match_policy
             );
 
-            let outcome = runner::run_with(config, steps, predictor).map_err(|e| e.to_string())?;
+            let g0 = match seed_graph {
+                Some(ref path) => {
+                    let g = aria_engine_backends::load_seed_graph(
+                        path,
+                        config.n_modes,
+                        config.latent_dim,
+                    )
+                    .map_err(|e| format!("seed graph {}: {e}", path.display()))?;
+                    eprintln!(
+                        "Seed graph: {} ({} nodes, {} edges)",
+                        path.display(),
+                        g.node_count(),
+                        g.edge_count()
+                    );
+                    g
+                }
+                None => aria_engine_core::graph::Graph::empty(),
+            };
+
+            let outcome = runner::run_with_graph(config, steps, predictor, g0)
+                .map_err(|e| e.to_string())?;
             let s = &outcome.summary;
 
             eprintln!("Completed {} steps successfully.", s.steps);
@@ -367,6 +448,18 @@ fn real_main(cli: Cli) -> Result<(), String> {
                     eprintln!("Trace written to {}", path.display());
                 }
                 None => print!("{jsonl}"),
+            }
+            if let Some(ref path) = export_graph {
+                let json = serde_json::to_string_pretty(&outcome.state.g)
+                    .map_err(|e| format!("serialize graph: {e}"))?;
+                fs::write(path, json)
+                    .map_err(|e| format!("failed to write graph {}: {e}", path.display()))?;
+                eprintln!(
+                    "Graph written to {} ({} nodes, {} edges)",
+                    path.display(),
+                    outcome.state.g.node_count(),
+                    outcome.state.g.edge_count()
+                );
             }
             Ok(())
         }
@@ -611,6 +704,192 @@ fn real_main(cli: Cli) -> Result<(), String> {
             }
             Ok(())
         }
+
+        Commands::Emit {
+            trace,
+            readout,
+            tokenizer,
+            output,
+            dump_latents,
+            init_seeded,
+        } => emit_cmd(
+            base,
+            &trace,
+            &readout,
+            tokenizer.as_deref(),
+            output.as_deref(),
+            dump_latents.as_deref(),
+            init_seeded,
+        ),
+    }
+}
+
+/// Post-hoc readout. Structurally incapable of mutating Φ.
+fn emit_cmd(
+    mut config: AriaConfig,
+    trace_path: &std::path::Path,
+    readout_path: &std::path::Path,
+    tokenizer_path: Option<&std::path::Path>,
+    output: Option<&std::path::Path>,
+    dump_latents: Option<&std::path::Path>,
+    init_seeded: Option<u64>,
+) -> Result<(), String> {
+    use aria_engine_backends::{latents_of, BpeTokenizer, DiscreteReadout, Readout};
+
+    let jsonl = fs::read_to_string(trace_path)
+        .map_err(|e| format!("failed to read trace {}: {e}", trace_path.display()))?;
+    let (n_modes, latent_dim, eps, rows) = parse_trace(&jsonl)?;
+    config.n_modes = n_modes;
+    config.latent_dim = latent_dim;
+    config.eps = eps;
+
+    if let Some(seed) = init_seeded {
+        let head = DiscreteReadout::seeded(latent_dim, config.vocab_size, 1.0, seed)
+            .map_err(|e| e.to_string())?;
+        head.to_file(readout_path).map_err(|e| e.to_string())?;
+        eprintln!(
+            "wrote seeded discrete head dim={latent_dim} vocab={} seed={seed} → {}",
+            config.vocab_size,
+            readout_path.display()
+        );
+        return Ok(());
+    }
+
+    let steps = u64::try_from(rows.len()).map_err(|_| "trace longer than u64::MAX".to_string())?;
+    let zs = latents_of(config, steps).map_err(|e| e.to_string())?;
+    if zs.len() != rows.len() {
+        return Err(format!(
+            "replay produced {} latents for {} trace rows — config does not match the run",
+            zs.len(),
+            rows.len()
+        ));
+    }
+
+    if let Some(path) = dump_latents {
+        let mut buf = String::new();
+        for z in &zs {
+            buf.push_str(&serde_json::to_string(z).map_err(|e| e.to_string())?);
+            buf.push('\n');
+        }
+        fs::write(path, buf)
+            .map_err(|e| format!("failed to write latents {}: {e}", path.display()))?;
+    }
+
+    let readout = Readout::from_file(readout_path)
+        .map_err(|e| format!("failed to load readout {}: {e}", readout_path.display()))?;
+    if readout.dim() != latent_dim {
+        return Err(format!(
+            "readout dim {} does not match trace latent_dim {latent_dim}",
+            readout.dim()
+        ));
+    }
+    let tokenizer = match tokenizer_path {
+        Some(p) => Some(
+            BpeTokenizer::from_file(p)
+                .map_err(|e| format!("failed to load tokenizer {}: {e}", p.display()))?,
+        ),
+        None => None,
+    };
+
+    let mut out = String::new();
+    for ((t, action), z) in rows.iter().zip(&zs) {
+        let line = match &readout {
+            Readout::Discrete(h) => {
+                let id = h.decode_id(z).map_err(|e| e.to_string())?;
+                let mut v = serde_json::json!({ "t": t, "action": action, "id": id });
+                if let Some(tok) = &tokenizer {
+                    v["piece"] = serde_json::json!(tok.decode_one(id).map_err(|e| e.to_string())?);
+                }
+                serde_json::to_string(&v).map_err(|e| e.to_string())?
+            }
+            Readout::Continuous(h) => {
+                let a = h.emit(z).map_err(|e| e.to_string())?;
+                serde_json::to_string(&serde_json::json!({ "t": t, "action": action, "a": a }))
+                    .map_err(|e| e.to_string())?
+            }
+        };
+        out.push_str(&line);
+        out.push('\n');
+    }
+
+    match output {
+        Some(path) => {
+            fs::write(path, &out)
+                .map_err(|e| format!("failed to write emit {}: {e}", path.display()))?;
+            eprintln!(
+                "emit: {} rows → {} ({})",
+                rows.len(),
+                path.display(),
+                match readout {
+                    Readout::Discrete(_) => "discrete",
+                    Readout::Continuous(_) => "continuous",
+                }
+            );
+        }
+        None => print!("{out}"),
+    }
+    Ok(())
+}
+
+type TraceRows = Vec<(u64, String)>;
+
+fn header_usize(header: &serde_json::Value, key: &str) -> Result<usize, String> {
+    let n = header
+        .get(key)
+        .and_then(serde_json::Value::as_u64)
+        .ok_or_else(|| format!("header missing {key}"))?;
+    usize::try_from(n).map_err(|_| format!("header {key} exceeds usize"))
+}
+
+fn parse_trace(jsonl: &str) -> Result<(usize, usize, f64, TraceRows), String> {
+    let mut lines = jsonl.lines();
+    let header = lines
+        .next()
+        .ok_or_else(|| "trace is empty".to_string())?;
+    let header: serde_json::Value =
+        serde_json::from_str(header).map_err(|e| format!("trace header: {e}"))?;
+    if header.get("type").and_then(serde_json::Value::as_str) != Some("config") {
+        return Err("first trace line must be a config header".into());
+    }
+    let n_modes = header_usize(&header, "n_modes")?;
+    let latent_dim = header_usize(&header, "latent_dim")?;
+    let eps = header
+        .get("eps")
+        .and_then(serde_json::Value::as_f64)
+        .ok_or("header missing eps")?;
+    let mut rows = Vec::new();
+    for (i, line) in lines.enumerate() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let v: serde_json::Value =
+            serde_json::from_str(line).map_err(|e| format!("trace row {i}: {e}"))?;
+        let t = v
+            .get("t")
+            .and_then(serde_json::Value::as_u64)
+            .ok_or_else(|| format!("trace row {i} missing t"))?;
+        let action = v
+            .get("action")
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| format!("trace row {i} missing action"))?
+            .to_string();
+        rows.push((t, action));
+    }
+    if rows.is_empty() {
+        return Err("trace has no step rows".into());
+    }
+    Ok((n_modes, latent_dim, eps, rows))
+}
+
+fn parse_match_policy(s: &str) -> Result<MatchPolicy, String> {
+    match s.to_lowercase().as_str() {
+        "identity" => Ok(MatchPolicy::Identity),
+        "one_edit" | "one-edit" => Ok(MatchPolicy::OneEdit),
+        "merge" => Ok(MatchPolicy::Merge),
+        "rebuild_gstar" | "rebuild-gstar" | "rebuild" => Ok(MatchPolicy::RebuildGStar),
+        other => Err(format!(
+            "unknown match policy '{other}' (expected identity|one_edit|merge|rebuild_gstar)"
+        )),
     }
 }
 
