@@ -92,6 +92,19 @@ build/
 docs
 spec
 
+# Root-level planning notes are private for the same reason, and are listed
+# explicitly because the remotes are public. They quote internal product and
+# commercial material that does not belong in a public tree. Listing them here
+# means an accidental `git add -A` cannot publish them.
+/plan.md
+/plan-1.md
+/issues.md
+/explainer-101-lowdown-real-shit.md
+/OBJECTIVES.md
+
+# Host demo / caller façade, not part of the telemetry product itself.
+/www/
+
 # NOTE: Cargo.lock IS tracked on purpose.
 # This workspace produces binaries (aria-cli, aria-wasm cdylib), so per
 # Cargo convention the lockfile is committed for reproducible builds.
