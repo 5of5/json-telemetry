@@ -1,3 +1,5 @@
+# Local dump analysis (garbage collection / operator scores)
+/dump/
 # --- OS ---
 .DS_Store
 .DS_Store?
