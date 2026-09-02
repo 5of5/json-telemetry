@@ -6,6 +6,17 @@ members = [
     "crates/aria-cli",
     "crates/aria-wasm",
     "crates/aria-training",
+    "crates/aria-operator",
+    "python/aria-py",
+    "crates/operators/*",
+]
+default-members = [
+    "crates/aria-core",
+    "crates/aria-backends",
+    "crates/aria-cli",
+    "crates/aria-wasm",
+    "crates/aria-training",
+    "crates/aria-operator",
     "python/aria-py",
 ]
 

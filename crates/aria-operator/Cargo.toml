@@ -1,0 +1,24 @@
+[package]
+name = "aria-operator"
+description = "Closed JSON operator envelope wrapping the Aria telemetry transform — shared by every catalog binary"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+readme = "README.md"
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+aria-engine-core = { version = "0.2.0", path = "../aria-core" }
+aria-engine-backends = { version = "0.2.0", path = "../aria-backends" }
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true
