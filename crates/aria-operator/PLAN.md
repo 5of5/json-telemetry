@@ -66,7 +66,7 @@ Five logic crates. 535 identity crates. Repeats are fine. If a change needs more
 | `aria-engine-core` | Φ. Do not touch. |
 | `aria-engine-backends` | ingest, transform, IPO |
 | `aria-operator` | JSON telemetry base |
-| `aria-work` | **The work gateway.** Workers pass `--binary BIN.*`. Expand here. |
+| `aria-work` | **Nervous-system JSON-CLI.** `work --commands` is the hosted list. `{work\|ops, in}` is the API. One Φ, N crates. Expand here. |
 | `crates/operators/<pkg>` | Separate `src` program per binary. Tweak in place. |
 
 ---

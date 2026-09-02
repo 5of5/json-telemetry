@@ -9,12 +9,16 @@
 mod dispatch;
 mod envelope;
 mod run;
+mod work_api;
 
 pub use dispatch::{
     endpoint_by_binary_id, endpoint_by_operator, endpoint_by_package, WorkerEndpoint,
 };
 pub use envelope::{OperatorEnvelope, OperatorNode, OperatorRel, OperatorSpec};
-pub use run::{run_binary, run_spec, OperatorError, RunOpts};
+pub use run::{run_binary, run_many, run_spec, OperatorError, RunOpts};
+pub use work_api::{
+    commands_json, execute_work, looks_like_work_command, WorkRequest, WorkResponse, WORK_V1,
+};
 
 use clap::Parser;
 use std::io::{self, Read, Write};

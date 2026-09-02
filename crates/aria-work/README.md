@@ -7,8 +7,9 @@ Workers do not import 535 packages. They pass work here:
 
 ```bash
 work --binary BIN.PEOPLE --in payload.json
-work --operator PEOPLE --in payload.json
-work --list
+work --commands                         # hosted command list (JSON API)
+echo '{"work":"BIN.PEOPLE","in":{"nodes":[{"id":1,"type":"Person","label":"Ada"}]}}' | work --json
+echo '{"ops":["BIN.PEOPLE","BIN.COMPANY"],"in":{"nodes":[...]}}' | work --json
 ```
 
 One JSON telemetry base (`aria-operator`). One gateway (`work`). 535

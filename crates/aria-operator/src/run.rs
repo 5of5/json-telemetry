@@ -102,6 +102,57 @@ pub fn run_binary(
     run_operator(spec, payload, opts)
 }
 
+/// One Φ, N projections. Hosted command lists compile through this.
+///
+/// This is the velocity path: Aria names operators from `commands()`, the
+/// gateway transforms the payload once, each binary remains an independent
+/// vertical (B0, B2). HOST layer is skipped unless the id is named explicitly
+/// (B6: host tools are not research operators).
+pub fn run_many(
+    binary_ids: &[String],
+    payload: &[u8],
+    opts: &RunOpts,
+) -> Result<Vec<OperatorEnvelope>, OperatorError> {
+    if binary_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut config = AriaConfig::default();
+    if let Some(n) = opts.n_modes {
+        config.n_modes = n;
+    }
+    if let Some(d) = opts.latent_dim {
+        config.latent_dim = d;
+    }
+    config.seed = opts.seed;
+    config.allow_sub_spec_dims = opts.allow_sub_spec_dims;
+
+    let mut req = TelemetryRequest::new(payload.to_vec());
+    req.config = config;
+    req.steps = opts.steps;
+    let telem = transform(req)?;
+    let telem_value = if opts.include_telemetry {
+        Some(serde_json::to_value(&telem)?)
+    } else {
+        None
+    };
+
+    let mut out = Vec::with_capacity(binary_ids.len());
+    for id in binary_ids {
+        let spec = crate::spec_by_id(id)
+            .ok_or_else(|| OperatorError::UnknownBinary(id.clone()))?;
+        out.push(envelope_from(
+            spec,
+            &telem.graph.nodes,
+            &telem.graph.edges,
+            &telem.records,
+            telem_value.as_ref(),
+            payload,
+            opts,
+        ));
+    }
+    Ok(out)
+}
+
 fn parse_spec(spec_json: &str) -> Result<OperatorSpec, OperatorError> {
     let v: Value = serde_json::from_str(spec_json)
         .map_err(|e| OperatorError::Spec(e.to_string()))?;
@@ -127,9 +178,32 @@ fn run_operator(
     req.config = config;
     req.steps = opts.steps;
     let telem = transform(req)?;
-    let telem_value = serde_json::to_value(&telem)?;
+    let telem_value = if opts.include_telemetry {
+        Some(serde_json::to_value(&telem)?)
+    } else {
+        None
+    };
+    Ok(envelope_from(
+        spec,
+        &telem.graph.nodes,
+        &telem.graph.edges,
+        &telem.records,
+        telem_value.as_ref(),
+        payload,
+        opts,
+    ))
+}
 
-    let (nodes, relationships, properties) = project(spec, &telem.graph.nodes, &telem.graph.edges, &telem.records);
+fn envelope_from(
+    spec: &OperatorSpec,
+    inodes: &[IpoNode],
+    iedges: &[IpoEdge],
+    records: &BTreeMap<u64, NodeRecord>,
+    telem_value: Option<&Value>,
+    payload: &[u8],
+    opts: &RunOpts,
+) -> OperatorEnvelope {
+    let (nodes, relationships, properties) = project(spec, inodes, iedges, records);
 
     let truncated = spec
         .default_limit
@@ -185,7 +259,7 @@ fn run_operator(
         .unwrap_or_else(|| "unbound".into());
     let subject_ids: Vec<u64> = nodes.iter().map(|n| n.id).collect();
 
-    Ok(OperatorEnvelope {
+    OperatorEnvelope {
         schema: OPERATOR_ENVELOPE_V1.into(),
         binary_id: spec.binary_id.clone(),
         operator: spec.operator.clone(),
@@ -205,12 +279,8 @@ fn run_operator(
         no_finding_reason,
         limitations,
         content_hash,
-        telemetry: if opts.include_telemetry {
-            Some(telem_value)
-        } else {
-            None
-        },
-    })
+        telemetry: telem_value.cloned(),
+    }
 }
 
 #[allow(clippy::too_many_lines)]
