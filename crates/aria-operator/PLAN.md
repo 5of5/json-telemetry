@@ -1,9 +1,9 @@
-# Completion plan — one JSON telemetry operator, 535 identities
+# Completion plan — one JSON telemetry operator, 560 identities
 
 **Status:** working plan for `5of5/json-telemetry` `v3.0.0` (`f895e4b` and after).
 **Catalog:** [Binary Repository v1](https://docs.google.com/spreadsheets/d/1GkFBE1_ZFclDma3DznJV_ONKXNEmNVx2eKbPl9Vf8OI/edit?gid=1130561225#gid=1130561225) (`01_BINARY_CATALOG`). Local copy: `TRACN Binary Repository v1 (1).xlsx` (not a crate).
 **Not `exec/` truth.** Product authority stays with tracn-api. AriA stays telemetry.
-**Paired:** [WORKER.md](WORKER.md) · [README.md](README.md) · Spawning Specification (Drive, 29 Aug 2026).
+**Paired:** [WORKER.md](WORKER.md) · [README.md](README.md) · [DUMP_ANALYSIS.md](DUMP_ANALYSIS.md) · [`plan-3.md`](../../plan-3.md) (surgical + Obsidian dump).
 
 Φ stays five actions. Inv1–4 stay. Readout stays outside Φ. This file does not add a sixth action.
 
@@ -11,7 +11,7 @@
 
 ## Synopsis (this is clear)
 
-The large schema is **already listed**. Eighteen family operators, nine host tools, one transformer, 180 residuals, 327 deep tags: **535 named binaries** on one closed JSON spine (sheet 09).
+The large schema is **already listed**. Eighteen family operators, nine host tools, one transformer, 180 residuals, 327 deep tags, **25 sealed map mixers** (`BIN.REF.*`, sheet 05): **560 named binaries** on one closed JSON spine (sheet 09). The mixers remix already-tagged telemetry into one of the 25 registry maps. They do not invent a 26th type.
 
 What remains is not a bigger catalog. It is a **contained kit**: modular, cheap, easy to extend, hard to bias.
 
@@ -66,7 +66,7 @@ Five logic crates. 535 identity crates. Repeats are fine. If a change needs more
 | `aria-engine-core` | Φ. Do not touch. |
 | `aria-engine-backends` | ingest, transform, IPO |
 | `aria-operator` | JSON telemetry base |
-| `aria-work` | **Nervous-system JSON-CLI.** `work --commands` is the hosted list. `{work\|ops, in}` is the API. One Φ, N crates. Expand here. |
+| `aria-json-telemetry --bin work` | **Nervous-system JSON-CLI.** `work --commands` is the hosted list. `{work\|ops, in}` is the API. One Φ, N crates. Expand here. |
 | `crates/operators/<pkg>` | Separate `src` program per binary. Tweak in place. |
 
 ---
@@ -82,7 +82,7 @@ sealed Observation Plan
   requirementId + resultDefinitionRef + subjectIds     (01 HOW IT WORKS)
         │
         ▼
-work --binary BIN.PEOPLE --in payload.json            (aria-work gateway)
+work --binary BIN.PEOPLE --in payload.json            (aria-json-telemetry gateway)
         │  still valid: cargo run -p aria-telemetry-people
         ▼
 closed operator JSON   ← vertical (cheap)
@@ -201,9 +201,9 @@ A worker can already: JSON in → one crate → vertical + (today) full telemetr
 
 ### P1 — Default wire is too fat
 
-Sheet 09: `telemetry` is **optional**, not the API contract. Today every call embeds the spine. Coordinator needs the vertical.
+Sheet 09: `telemetry` is **optional**, not the API contract. Coordinator needs the vertical.
 
-**Do:** default omit telemetry; `--telemetry` opt-in.
+**Done (M0 + production callback):** default omit telemetry; `--telemetry` opt-in. `execute_work` / `work` CLI return **working verticals only** (`asked` vs `ops`). Empty no-finding is absence, not a skeleton. Dump still scores 535 internally and writes `{case}.callback.json` as the PCVC/Neo4j export.
 
 ### P2 — Envelope vs sheet 09
 
@@ -221,7 +221,7 @@ PEOPLE should **request** `NODE.PERSON` + `REL.WORKS_AT` + … and merge vertica
 
 ### P5 — HOST crates still run Φ
 
-Nine host rows must not be research operators. Return `limitation` + PCVC pointer, or live only in `pcvc`.
+**Closed P3-1 (`output_260902_2233`).** Nine host rows return `limitation` + empty vertical, no Φ. TRANSFORM (`BIN.ARIA`) still runs it.
 
 ### P6 — 535 compile; 535 are not tested as operators
 
@@ -344,13 +344,13 @@ M9 CI                 after M2
 ```bash
 # gateway (preferred for workers)
 printf '%s' '{"nodes":[{"id":1,"type":"Person","label":"Ada"}]}' \
-  | cargo run -q -p aria-work -- --binary BIN.PEOPLE --seed 1 --steps 8
+  | cargo run -q --bin work -- --binary BIN.PEOPLE --seed 1 --steps 8
 
 # still valid: one crate, one program
 cargo run -q -p aria-telemetry-people -- --seed 1 --steps 8 --in payload.json
 
 cargo test -p aria-operator
-cargo run -q -p aria-work -- --list | wc -l   # 535
+cargo run -q --bin work -- --list | wc -l   # 535
 ```
 
 `--telemetry` only when the Supervisor asked for the spine.

@@ -27,6 +27,8 @@ do not share mutable calculation state. B7: Aria is never a judge.
 
 A worker is pointed at one crate. See [WORKER.md](WORKER.md).
 What remains: [PLAN.md](PLAN.md).
+Every identity: [catalog/INDEX.md](catalog/INDEX.md).
+The 25 sealed map mixers: [maps/MAPS.md](maps/MAPS.md).
 
 Dump (garbage collection + scores):
 

@@ -16,7 +16,7 @@ use std::path::PathBuf;
 #[allow(clippy::struct_excessive_bools)]
 #[command(
     name = "work",
-    about = "Nervous-system gateway: JSON-CLI for every catalog operator. One telemetry base; 535 crates."
+    about = "Nervous-system gateway: JSON-CLI for every catalog operator. One telemetry base; 560 crates."
 )]
 struct Cli {
     /// Catalog `BIN.*`.
@@ -95,7 +95,29 @@ pub fn work_main() -> i32 {
     };
     let opts = opts_from(&cli);
     match run_binary(&binary_id, &raw, &opts) {
-        Ok(env) => dump_bytes(&env, cli.out.as_deref()),
+        Ok(env) => {
+            let results = if env.has_working_data() {
+                match serde_json::to_value(&env) {
+                    Ok(v) => vec![v],
+                    Err(e) => {
+                        eprintln!("work: serialize: {e}");
+                        return 2;
+                    }
+                }
+            } else {
+                Vec::new()
+            };
+            dump(
+                &serde_json::json!({
+                    "schema": crate::WORK_V1,
+                    "phi_once": true,
+                    "asked": 1,
+                    "ops": results.len(),
+                    "results": results,
+                }),
+                cli.out.as_deref(),
+            )
+        }
         Err(e) => {
             eprintln!("work: {e}");
             e.exit_code()
@@ -178,22 +200,6 @@ fn list_tsv() -> i32 {
 }
 
 fn dump(v: &Value, path: Option<&std::path::Path>) -> i32 {
-    match serde_json::to_vec(v) {
-        Ok(b) => match write_sink(path, &b) {
-            Ok(()) => 0,
-            Err(e) => {
-                eprintln!("work: {e}");
-                3
-            }
-        },
-        Err(e) => {
-            eprintln!("work: serialize: {e}");
-            2
-        }
-    }
-}
-
-fn dump_bytes<T: serde::Serialize>(v: &T, path: Option<&std::path::Path>) -> i32 {
     match serde_json::to_vec(v) {
         Ok(b) => match write_sink(path, &b) {
             Ok(()) => 0,

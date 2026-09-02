@@ -45,16 +45,30 @@ pub struct WorkRequest {
 }
 
 /// Compiled results. Zero Trust: no Trust/Use/Goal keys.
+///
+/// Production contract: `results` holds **working verticals only**. A binary
+/// that cannot tag the payload is omitted — not returned as an empty
+/// skeleton. `asked` is how many identities were named; `ops` is how many
+/// came back with nodes, relationships, or properties.
 #[derive(Debug, Clone, Serialize)]
 pub struct WorkResponse {
     /// Always [`WORK_V1`].
     pub schema: String,
     /// True when one transform served every op.
     pub phi_once: bool,
-    /// How many operator envelopes.
+    /// How many catalog identities were named (compiled).
+    pub asked: usize,
+    /// How many working envelopes are in `results`.
     pub ops: usize,
-    /// Independent verticals, one per named binary.
+    /// Working verticals only. Missing data is absence, not an empty object.
     pub results: Vec<Value>,
+}
+
+/// Filter a projection set down to envelopes a PCVC worker or Neo4j driver
+/// can consume. Dump scoring still uses the unfiltered `run_many` set.
+#[must_use]
+pub fn callback_results(envs: &[crate::OperatorEnvelope]) -> Vec<&crate::OperatorEnvelope> {
+    envs.iter().filter(|e| e.has_working_data()).collect()
 }
 
 /// Hosted command list — what Aria compiles against.
@@ -119,19 +133,20 @@ pub fn execute_work(req: &WorkRequest, opts_overlay: &RunOpts) -> Result<Value, 
     };
 
     let ids = resolve_ops(req)?;
-    if ids.len() == 1 {
-        let env = run_binary(&ids[0], &payload, &opts)?;
-        return Ok(serde_json::to_value(env)?);
-    }
-
-    let envs = run_many(&ids, &payload, &opts)?;
-    let results: Vec<Value> = envs
-        .iter()
+    let asked = ids.len();
+    let envs = if asked == 1 {
+        vec![run_binary(&ids[0], &payload, &opts)?]
+    } else {
+        run_many(&ids, &payload, &opts)?
+    };
+    let results: Vec<Value> = callback_results(&envs)
+        .into_iter()
         .map(serde_json::to_value)
         .collect::<Result<_, _>>()?;
     Ok(serde_json::to_value(WorkResponse {
         schema: WORK_V1.into(),
         phi_once: true,
+        asked,
         ops: results.len(),
         results,
     })?)

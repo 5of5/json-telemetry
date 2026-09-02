@@ -2340,6 +2340,928 @@
     "wave": "B"
   },
   {
+    "anchor_tags": [
+      "ACCOUNT",
+      "COMPANY",
+      "WARM_PATH",
+      "ICP",
+      "Account Targeting",
+      "MAP_TYPE"
+    ],
+    "binary_id": "BIN.REF.ACCOUNT_TARGETING",
+    "class": "REFINEMENT",
+    "crate": "aria_ref_account_targeting",
+    "default_limit": null,
+    "layer": "REFINEMENT",
+    "neo4j_pass": true,
+    "node_types": [
+      "Account",
+      "Company",
+      "Person"
+    ],
+    "operator": "REF.ACCOUNT_TARGETING",
+    "package": "aria-ref-account-targeting",
+    "parent": "MARKET_MAP",
+    "pass_through": false,
+    "property_key": null,
+    "relationship_types": [
+      "TARGETED_BY",
+      "PATH_TO",
+      "HAS_PERSONA"
+    ],
+    "result_definition_ref": "map.ref.account_targeting",
+    "retrieval_step": "memory",
+    "taxonomy": "Account Targeting",
+    "telemetry_fork": "aria/ref/account_targeting@v1",
+    "verify": true,
+    "wave": null
+  },
+  {
+    "anchor_tags": [
+      "PERSON",
+      "BUYER_TAG",
+      "COMPANY",
+      "CUSTOMER_PROOF",
+      "Buyer Persona Relationship",
+      "MAP_TYPE"
+    ],
+    "binary_id": "BIN.REF.BUYER_PERSONA_RELATIONSHIP",
+    "class": "REFINEMENT",
+    "crate": "aria_ref_buyer_persona_relationship",
+    "default_limit": null,
+    "layer": "REFINEMENT",
+    "neo4j_pass": true,
+    "node_types": [
+      "Person",
+      "Company",
+      "Account",
+      "Claim"
+    ],
+    "operator": "REF.BUYER_PERSONA_RELATIONSHIP",
+    "package": "aria-ref-buyer-persona-relationship",
+    "parent": "MARKET_MAP",
+    "pass_through": false,
+    "property_key": null,
+    "relationship_types": [
+      "WORKS_AT",
+      "BUYS",
+      "HAS_PERSONA"
+    ],
+    "result_definition_ref": "map.ref.buyer_persona_relationship",
+    "retrieval_step": "memory",
+    "taxonomy": "Buyer Persona Relationship",
+    "telemetry_fork": "aria/ref/buyer_persona_relationship@v1",
+    "verify": true,
+    "wave": null
+  },
+  {
+    "anchor_tags": [
+      "EVENT",
+      "COMPANY",
+      "TIMESTAMP",
+      "MEDIA",
+      "Category Creation Timeline",
+      "MAP_TYPE"
+    ],
+    "binary_id": "BIN.REF.CATEGORY_CREATION_TIMELINE",
+    "class": "REFINEMENT",
+    "crate": "aria_ref_category_creation_timeline",
+    "default_limit": null,
+    "layer": "REFINEMENT",
+    "neo4j_pass": true,
+    "node_types": [
+      "Event",
+      "MarketSignal",
+      "Company",
+      "Content"
+    ],
+    "operator": "REF.CATEGORY_CREATION_TIMELINE",
+    "package": "aria-ref-category-creation-timeline",
+    "parent": "MARKET_MAP",
+    "pass_through": false,
+    "property_key": null,
+    "relationship_types": [
+      "ANNOUNCED",
+      "OCCURRED_AT",
+      "SIGNALS"
+    ],
+    "result_definition_ref": "map.ref.category_creation_timeline",
+    "retrieval_step": "memory",
+    "taxonomy": "Category Creation Timeline",
+    "telemetry_fork": "aria/ref/category_creation_timeline@v1",
+    "verify": true,
+    "wave": null
+  },
+  {
+    "anchor_tags": [
+      "COMPANY",
+      "MARKET",
+      "CATEGORY",
+      "Category Galaxy",
+      "MAP_TYPE"
+    ],
+    "binary_id": "BIN.REF.CATEGORY_GALAXY",
+    "class": "REFINEMENT",
+    "crate": "aria_ref_category_galaxy",
+    "default_limit": null,
+    "layer": "REFINEMENT",
+    "neo4j_pass": true,
+    "node_types": [
+      "Company",
+      "Market",
+      "Category",
+      "MarketSignal"
+    ],
+    "operator": "REF.CATEGORY_GALAXY",
+    "package": "aria-ref-category-galaxy",
+    "parent": "MARKET_MAP",
+    "pass_through": false,
+    "property_key": null,
+    "relationship_types": [
+      "IN_CATEGORY",
+      "ADJACENT_TO"
+    ],
+    "result_definition_ref": "map.ref.category_galaxy",
+    "retrieval_step": "memory",
+    "taxonomy": "Category Galaxy",
+    "telemetry_fork": "aria/ref/category_galaxy@v1",
+    "verify": true,
+    "wave": null
+  },
+  {
+    "anchor_tags": [
+      "COMPANY",
+      "PRODUCT",
+      "LAYER",
+      "CATEGORY",
+      "Category Stack",
+      "MAP_TYPE"
+    ],
+    "binary_id": "BIN.REF.CATEGORY_STACK",
+    "class": "REFINEMENT",
+    "crate": "aria_ref_category_stack",
+    "default_limit": null,
+    "layer": "REFINEMENT",
+    "neo4j_pass": true,
+    "node_types": [
+      "Company",
+      "Product",
+      "Market",
+      "Category"
+    ],
+    "operator": "REF.CATEGORY_STACK",
+    "package": "aria-ref-category-stack",
+    "parent": "MARKET_MAP",
+    "pass_through": false,
+    "property_key": null,
+    "relationship_types": [
+      "IN_CATEGORY",
+      "OFFERED_BY"
+    ],
+    "result_definition_ref": "map.ref.category_stack",
+    "retrieval_step": "memory",
+    "taxonomy": "Category Stack",
+    "telemetry_fork": "aria/ref/category_stack@v1",
+    "verify": true,
+    "wave": null
+  },
+  {
+    "anchor_tags": [
+      "COMPANY",
+      "COMPETITOR_TAG",
+      "SIGNAL",
+      "Competitive Radar",
+      "MAP_TYPE"
+    ],
+    "binary_id": "BIN.REF.COMPETITIVE_RADAR",
+    "class": "REFINEMENT",
+    "crate": "aria_ref_competitive_radar",
+    "default_limit": null,
+    "layer": "REFINEMENT",
+    "neo4j_pass": true,
+    "node_types": [
+      "Company",
+      "MarketSignal",
+      "Claim"
+    ],
+    "operator": "REF.COMPETITIVE_RADAR",
+    "package": "aria-ref-competitive-radar",
+    "parent": "MARKET_MAP",
+    "pass_through": false,
+    "property_key": null,
+    "relationship_types": [
+      "COMPETES_WITH"
+    ],
+    "result_definition_ref": "map.ref.competitive_radar",
+    "retrieval_step": "memory",
+    "taxonomy": "Competitive Radar",
+    "telemetry_fork": "aria/ref/competitive_radar@v1",
+    "verify": true,
+    "wave": null
+  },
+  {
+    "anchor_tags": [
+      "COMPANY",
+      "PRODUCT",
+      "COMPETITOR_TAG",
+      "CLAIM",
+      "Competitor Battlecard",
+      "MAP_TYPE"
+    ],
+    "binary_id": "BIN.REF.COMPETITOR_BATTLECARD",
+    "class": "REFINEMENT",
+    "crate": "aria_ref_competitor_battlecard",
+    "default_limit": null,
+    "layer": "REFINEMENT",
+    "neo4j_pass": true,
+    "node_types": [
+      "Company",
+      "Product",
+      "Claim"
+    ],
+    "operator": "REF.COMPETITOR_BATTLECARD",
+    "package": "aria-ref-competitor-battlecard",
+    "parent": "MARKET_MAP",
+    "pass_through": false,
+    "property_key": null,
+    "relationship_types": [
+      "COMPETES_WITH",
+      "SUBSTITUTES",
+      "CITES"
+    ],
+    "result_definition_ref": "map.ref.competitor_battlecard",
+    "retrieval_step": "memory",
+    "taxonomy": "Competitor Battlecard",
+    "telemetry_fork": "aria/ref/competitor_battlecard@v1",
+    "verify": true,
+    "wave": null
+  },
+  {
+    "anchor_tags": [
+      "CUSTOMER",
+      "SELLER_TAG",
+      "CUSTOMER_PROOF",
+      "Customer Logos",
+      "MAP_TYPE"
+    ],
+    "binary_id": "BIN.REF.CUSTOMER_LOGOS",
+    "class": "REFINEMENT",
+    "crate": "aria_ref_customer_logos",
+    "default_limit": null,
+    "layer": "REFINEMENT",
+    "neo4j_pass": true,
+    "node_types": [
+      "Customer",
+      "Account",
+      "Company",
+      "Product",
+      "Claim"
+    ],
+    "operator": "REF.CUSTOMER_LOGOS",
+    "package": "aria-ref-customer-logos",
+    "parent": "MARKET_MAP",
+    "pass_through": false,
+    "property_key": null,
+    "relationship_types": [
+      "CUSTOMER_OF",
+      "SELLS_TO"
+    ],
+    "result_definition_ref": "map.ref.customer_logos",
+    "retrieval_step": "memory",
+    "taxonomy": "Customer Logos",
+    "telemetry_fork": "aria/ref/customer_logos@v1",
+    "verify": true,
+    "wave": null
+  },
+  {
+    "anchor_tags": [
+      "COMPANY",
+      "PRODUCT",
+      "PARTNER_TAG",
+      "Developer Ecosystem",
+      "MAP_TYPE"
+    ],
+    "binary_id": "BIN.REF.DEVELOPER_ECOSYSTEM",
+    "class": "REFINEMENT",
+    "crate": "aria_ref_developer_ecosystem",
+    "default_limit": null,
+    "layer": "REFINEMENT",
+    "neo4j_pass": true,
+    "node_types": [
+      "Company",
+      "Product",
+      "Person"
+    ],
+    "operator": "REF.DEVELOPER_ECOSYSTEM",
+    "package": "aria-ref-developer-ecosystem",
+    "parent": "MARKET_MAP",
+    "pass_through": false,
+    "property_key": null,
+    "relationship_types": [
+      "INTEGRATES_WITH",
+      "OFFERED_BY"
+    ],
+    "result_definition_ref": "map.ref.developer_ecosystem",
+    "retrieval_step": "memory",
+    "taxonomy": "Developer Ecosystem",
+    "telemetry_fork": "aria/ref/developer_ecosystem@v1",
+    "verify": true,
+    "wave": null
+  },
+  {
+    "anchor_tags": [
+      "COMPANY",
+      "PARTNER_TAG",
+      "PRODUCT",
+      "Ecosystem Gravity",
+      "MAP_TYPE"
+    ],
+    "binary_id": "BIN.REF.ECOSYSTEM_GRAVITY",
+    "class": "REFINEMENT",
+    "crate": "aria_ref_ecosystem_gravity",
+    "default_limit": null,
+    "layer": "REFINEMENT",
+    "neo4j_pass": true,
+    "node_types": [
+      "Company",
+      "Product"
+    ],
+    "operator": "REF.ECOSYSTEM_GRAVITY",
+    "package": "aria-ref-ecosystem-gravity",
+    "parent": "MARKET_MAP",
+    "pass_through": false,
+    "property_key": null,
+    "relationship_types": [
+      "PARTNERS_WITH",
+      "INTEGRATES_WITH"
+    ],
+    "result_definition_ref": "map.ref.ecosystem_gravity",
+    "retrieval_step": "memory",
+    "taxonomy": "Ecosystem Gravity",
+    "telemetry_fork": "aria/ref/ecosystem_gravity@v1",
+    "verify": true,
+    "wave": null
+  },
+  {
+    "anchor_tags": [
+      "PERSON",
+      "COMPANY",
+      "Founder/Operator Lineage",
+      "MAP_TYPE"
+    ],
+    "binary_id": "BIN.REF.FOUNDER_OPERATOR_LINEAGE",
+    "class": "REFINEMENT",
+    "crate": "aria_ref_founder_operator_lineage",
+    "default_limit": null,
+    "layer": "REFINEMENT",
+    "neo4j_pass": true,
+    "node_types": [
+      "Person",
+      "Company"
+    ],
+    "operator": "REF.FOUNDER_OPERATOR_LINEAGE",
+    "package": "aria-ref-founder-operator-lineage",
+    "parent": "MARKET_MAP",
+    "pass_through": false,
+    "property_key": null,
+    "relationship_types": [
+      "FOUNDED",
+      "WORKS_AT",
+      "PREVIOUSLY_AT"
+    ],
+    "result_definition_ref": "map.ref.founder_operator_lineage",
+    "retrieval_step": "memory",
+    "taxonomy": "Founder/Operator Lineage",
+    "telemetry_fork": "aria/ref/founder_operator_lineage@v1",
+    "verify": true,
+    "wave": null
+  },
+  {
+    "anchor_tags": [
+      "COMPANY",
+      "INVESTOR",
+      "FUNDING",
+      "TIMESTAMP",
+      "Funding Momentum",
+      "MAP_TYPE"
+    ],
+    "binary_id": "BIN.REF.FUNDING_MOMENTUM",
+    "class": "REFINEMENT",
+    "crate": "aria_ref_funding_momentum",
+    "default_limit": null,
+    "layer": "REFINEMENT",
+    "neo4j_pass": true,
+    "node_types": [
+      "Company",
+      "Investor",
+      "Fund",
+      "MarketSignal",
+      "Event"
+    ],
+    "operator": "REF.FUNDING_MOMENTUM",
+    "package": "aria-ref-funding-momentum",
+    "parent": "MARKET_MAP",
+    "pass_through": false,
+    "property_key": null,
+    "relationship_types": [
+      "INVESTS_IN",
+      "RAISES_FROM",
+      "SIGNALS"
+    ],
+    "result_definition_ref": "map.ref.funding_momentum",
+    "retrieval_step": "memory",
+    "taxonomy": "Funding Momentum",
+    "telemetry_fork": "aria/ref/funding_momentum@v1",
+    "verify": true,
+    "wave": null
+  },
+  {
+    "anchor_tags": [
+      "ACCOUNT",
+      "PERSON",
+      "BUYER_TAG",
+      "ICP",
+      "ICP Expansion",
+      "MAP_TYPE"
+    ],
+    "binary_id": "BIN.REF.ICP_EXPANSION",
+    "class": "REFINEMENT",
+    "crate": "aria_ref_icp_expansion",
+    "default_limit": null,
+    "layer": "REFINEMENT",
+    "neo4j_pass": true,
+    "node_types": [
+      "Account",
+      "Person",
+      "Customer"
+    ],
+    "operator": "REF.ICP_EXPANSION",
+    "package": "aria-ref-icp-expansion",
+    "parent": "MARKET_MAP",
+    "pass_through": false,
+    "property_key": null,
+    "relationship_types": [
+      "HAS_PERSONA",
+      "ADJACENT_TO",
+      "BUYS"
+    ],
+    "result_definition_ref": "map.ref.icp_expansion",
+    "retrieval_step": "memory",
+    "taxonomy": "ICP Expansion",
+    "telemetry_fork": "aria/ref/icp_expansion@v1",
+    "verify": true,
+    "wave": null
+  },
+  {
+    "anchor_tags": [
+      "PERSON",
+      "COMPANY",
+      "INVESTOR",
+      "Influence Network",
+      "MAP_TYPE"
+    ],
+    "binary_id": "BIN.REF.INFLUENCE_NETWORK",
+    "class": "REFINEMENT",
+    "crate": "aria_ref_influence_network",
+    "default_limit": null,
+    "layer": "REFINEMENT",
+    "neo4j_pass": true,
+    "node_types": [
+      "Person",
+      "Company",
+      "Investor",
+      "Fund"
+    ],
+    "operator": "REF.INFLUENCE_NETWORK",
+    "package": "aria-ref-influence-network",
+    "parent": "MARKET_MAP",
+    "pass_through": false,
+    "property_key": null,
+    "relationship_types": [
+      "INFLUENCES",
+      "WORKS_AT",
+      "FOUNDED"
+    ],
+    "result_definition_ref": "map.ref.influence_network",
+    "retrieval_step": "memory",
+    "taxonomy": "Influence Network",
+    "telemetry_fork": "aria/ref/influence_network@v1",
+    "verify": true,
+    "wave": null
+  },
+  {
+    "anchor_tags": [
+      "INVESTOR",
+      "SYNDICATE_TAG",
+      "COMPANY",
+      "Investor Syndicate",
+      "MAP_TYPE"
+    ],
+    "binary_id": "BIN.REF.INVESTOR_SYNDICATE",
+    "class": "REFINEMENT",
+    "crate": "aria_ref_investor_syndicate",
+    "default_limit": null,
+    "layer": "REFINEMENT",
+    "neo4j_pass": true,
+    "node_types": [
+      "Investor",
+      "Fund",
+      "Company",
+      "Syndicate"
+    ],
+    "operator": "REF.INVESTOR_SYNDICATE",
+    "package": "aria-ref-investor-syndicate",
+    "parent": "MARKET_MAP",
+    "pass_through": false,
+    "property_key": null,
+    "relationship_types": [
+      "INVESTS_IN",
+      "CO_INVESTS_WITH",
+      "MEMBER_OF"
+    ],
+    "result_definition_ref": "map.ref.investor_syndicate",
+    "retrieval_step": "memory",
+    "taxonomy": "Investor Syndicate",
+    "telemetry_fork": "aria/ref/investor_syndicate@v1",
+    "verify": true,
+    "wave": null
+  },
+  {
+    "anchor_tags": [
+      "MARKET",
+      "GEOGRAPHY",
+      "PARTNER_TAG",
+      "WARM_PATH",
+      "Market Entry",
+      "MAP_TYPE"
+    ],
+    "binary_id": "BIN.REF.MARKET_ENTRY",
+    "class": "REFINEMENT",
+    "crate": "aria_ref_market_entry",
+    "default_limit": null,
+    "layer": "REFINEMENT",
+    "neo4j_pass": true,
+    "node_types": [
+      "Market",
+      "Category",
+      "Company"
+    ],
+    "operator": "REF.MARKET_ENTRY",
+    "package": "aria-ref-market-entry",
+    "parent": "MARKET_MAP",
+    "pass_through": false,
+    "property_key": null,
+    "relationship_types": [
+      "OPERATES_IN",
+      "PATH_TO",
+      "PARTNERS_WITH"
+    ],
+    "result_definition_ref": "map.ref.market_entry",
+    "retrieval_step": "memory",
+    "taxonomy": "Market Entry",
+    "telemetry_fork": "aria/ref/market_entry@v1",
+    "verify": true,
+    "wave": null
+  },
+  {
+    "anchor_tags": [
+      "COMPANY",
+      "SIGNAL",
+      "FUNDING",
+      "HIRING",
+      "LAUNCH",
+      "Market Heat Island",
+      "MAP_TYPE"
+    ],
+    "binary_id": "BIN.REF.MARKET_HEAT_ISLAND",
+    "class": "REFINEMENT",
+    "crate": "aria_ref_market_heat_island",
+    "default_limit": null,
+    "layer": "REFINEMENT",
+    "neo4j_pass": true,
+    "node_types": [
+      "Company",
+      "MarketSignal",
+      "Event",
+      "Market",
+      "Category"
+    ],
+    "operator": "REF.MARKET_HEAT_ISLAND",
+    "package": "aria-ref-market-heat-island",
+    "parent": "MARKET_MAP",
+    "pass_through": false,
+    "property_key": null,
+    "relationship_types": [
+      "SIGNALS",
+      "OPERATES_IN"
+    ],
+    "result_definition_ref": "map.ref.market_heat_island",
+    "retrieval_step": "memory",
+    "taxonomy": "Market Heat Island",
+    "telemetry_fork": "aria/ref/market_heat_island@v1",
+    "verify": true,
+    "wave": null
+  },
+  {
+    "anchor_tags": [
+      "COMPANY",
+      "MARKET",
+      "CLAIM",
+      "SOURCE",
+      "PORTFOLIO",
+      "Market Intelligence Brief",
+      "MAP_TYPE"
+    ],
+    "binary_id": "BIN.REF.MARKET_INTELLIGENCE_BRIEF",
+    "class": "REFINEMENT",
+    "crate": "aria_ref_market_intelligence_brief",
+    "default_limit": null,
+    "layer": "REFINEMENT",
+    "neo4j_pass": true,
+    "node_types": [
+      "Company",
+      "Market",
+      "Category",
+      "Claim",
+      "Source",
+      "Portfolio",
+      "MarketMap",
+      "Workspace"
+    ],
+    "operator": "REF.MARKET_INTELLIGENCE_BRIEF",
+    "package": "aria-ref-market-intelligence-brief",
+    "parent": "MARKET_MAP",
+    "pass_through": false,
+    "property_key": null,
+    "relationship_types": [
+      "ASSERTS",
+      "CITES",
+      "CONTAINS_MAP"
+    ],
+    "result_definition_ref": "map.ref.market_intelligence_brief",
+    "retrieval_step": "memory",
+    "taxonomy": "Market Intelligence Brief",
+    "telemetry_fork": "aria/ref/market_intelligence_brief@v1",
+    "verify": true,
+    "wave": null
+  },
+  {
+    "anchor_tags": [
+      "COMPANY",
+      "MARKET",
+      "MARKET_MAP",
+      "SEGMENT",
+      "Market Map Canvas",
+      "MAP_TYPE"
+    ],
+    "binary_id": "BIN.REF.MARKET_MAP_CANVAS",
+    "class": "REFINEMENT",
+    "crate": "aria_ref_market_map_canvas",
+    "default_limit": null,
+    "layer": "REFINEMENT",
+    "neo4j_pass": true,
+    "node_types": [
+      "Company",
+      "Market",
+      "Category",
+      "Portfolio",
+      "MarketMap",
+      "Workspace"
+    ],
+    "operator": "REF.MARKET_MAP_CANVAS",
+    "package": "aria-ref-market-map-canvas",
+    "parent": "MARKET_MAP",
+    "pass_through": false,
+    "property_key": null,
+    "relationship_types": [
+      "IN_CATEGORY",
+      "PLACED_IN"
+    ],
+    "result_definition_ref": "map.ref.market_map_canvas",
+    "retrieval_step": "memory",
+    "taxonomy": "Market Map Canvas",
+    "telemetry_fork": "aria/ref/market_map_canvas@v1",
+    "verify": true,
+    "wave": null
+  },
+  {
+    "anchor_tags": [
+      "COMPANY",
+      "MARKET",
+      "TIMESTAMP",
+      "Market Maturity",
+      "MAP_TYPE"
+    ],
+    "binary_id": "BIN.REF.MARKET_MATURITY",
+    "class": "REFINEMENT",
+    "crate": "aria_ref_market_maturity",
+    "default_limit": null,
+    "layer": "REFINEMENT",
+    "neo4j_pass": true,
+    "node_types": [
+      "Company",
+      "Market",
+      "Category",
+      "Event",
+      "MarketSignal"
+    ],
+    "operator": "REF.MARKET_MATURITY",
+    "package": "aria-ref-market-maturity",
+    "parent": "MARKET_MAP",
+    "pass_through": false,
+    "property_key": null,
+    "relationship_types": [
+      "OPERATES_IN",
+      "OCCURRED_AT"
+    ],
+    "result_definition_ref": "map.ref.market_maturity",
+    "retrieval_step": "memory",
+    "taxonomy": "Market Maturity",
+    "telemetry_fork": "aria/ref/market_maturity@v1",
+    "verify": true,
+    "wave": null
+  },
+  {
+    "anchor_tags": [
+      "COMPANY",
+      "MARKET",
+      "CATEGORY",
+      "Market White Space",
+      "MAP_TYPE"
+    ],
+    "binary_id": "BIN.REF.MARKET_WHITE_SPACE",
+    "class": "REFINEMENT",
+    "crate": "aria_ref_market_white_space",
+    "default_limit": null,
+    "layer": "REFINEMENT",
+    "neo4j_pass": true,
+    "node_types": [
+      "Company",
+      "Market",
+      "Category",
+      "MarketSignal"
+    ],
+    "operator": "REF.MARKET_WHITE_SPACE",
+    "package": "aria-ref-market-white-space",
+    "parent": "MARKET_MAP",
+    "pass_through": false,
+    "property_key": null,
+    "relationship_types": [
+      "IN_CATEGORY",
+      "ADJACENT_TO"
+    ],
+    "result_definition_ref": "map.ref.market_white_space",
+    "retrieval_step": "memory",
+    "taxonomy": "Market White Space",
+    "telemetry_fork": "aria/ref/market_white_space@v1",
+    "verify": true,
+    "wave": null
+  },
+  {
+    "anchor_tags": [
+      "COMPANY",
+      "CONTENT",
+      "CLAIM",
+      "SOURCE",
+      "Narrative Positioning",
+      "MAP_TYPE"
+    ],
+    "binary_id": "BIN.REF.NARRATIVE_POSITIONING",
+    "class": "REFINEMENT",
+    "crate": "aria_ref_narrative_positioning",
+    "default_limit": null,
+    "layer": "REFINEMENT",
+    "neo4j_pass": true,
+    "node_types": [
+      "Company",
+      "Claim",
+      "Source",
+      "Content"
+    ],
+    "operator": "REF.NARRATIVE_POSITIONING",
+    "package": "aria-ref-narrative-positioning",
+    "parent": "MARKET_MAP",
+    "pass_through": false,
+    "property_key": null,
+    "relationship_types": [
+      "ASSERTS",
+      "CITES"
+    ],
+    "result_definition_ref": "map.ref.narrative_positioning",
+    "retrieval_step": "memory",
+    "taxonomy": "Narrative Positioning",
+    "telemetry_fork": "aria/ref/narrative_positioning@v1",
+    "verify": true,
+    "wave": null
+  },
+  {
+    "anchor_tags": [
+      "COMPANY",
+      "PARTNER_TAG",
+      "WARM_PATH",
+      "Partnership Path",
+      "MAP_TYPE"
+    ],
+    "binary_id": "BIN.REF.PARTNERSHIP_PATH",
+    "class": "REFINEMENT",
+    "crate": "aria_ref_partnership_path",
+    "default_limit": null,
+    "layer": "REFINEMENT",
+    "neo4j_pass": true,
+    "node_types": [
+      "Company",
+      "Account"
+    ],
+    "operator": "REF.PARTNERSHIP_PATH",
+    "package": "aria-ref-partnership-path",
+    "parent": "MARKET_MAP",
+    "pass_through": false,
+    "property_key": null,
+    "relationship_types": [
+      "PARTNERS_WITH",
+      "PATH_TO"
+    ],
+    "result_definition_ref": "map.ref.partnership_path",
+    "retrieval_step": "memory",
+    "taxonomy": "Partnership Path",
+    "telemetry_fork": "aria/ref/partnership_path@v1",
+    "verify": true,
+    "wave": null
+  },
+  {
+    "anchor_tags": [
+      "PRODUCT",
+      "COMPANY",
+      "CAPABILITY",
+      "CUSTOMER_PROOF",
+      "Product Capability",
+      "MAP_TYPE"
+    ],
+    "binary_id": "BIN.REF.PRODUCT_CAPABILITY",
+    "class": "REFINEMENT",
+    "crate": "aria_ref_product_capability",
+    "default_limit": null,
+    "layer": "REFINEMENT",
+    "neo4j_pass": true,
+    "node_types": [
+      "Product",
+      "Company",
+      "Claim"
+    ],
+    "operator": "REF.PRODUCT_CAPABILITY",
+    "package": "aria-ref-product-capability",
+    "parent": "MARKET_MAP",
+    "pass_through": false,
+    "property_key": null,
+    "relationship_types": [
+      "HAS_CAPABILITY",
+      "OFFERED_BY",
+      "SUBSTITUTES"
+    ],
+    "result_definition_ref": "map.ref.product_capability",
+    "retrieval_step": "memory",
+    "taxonomy": "Product Capability",
+    "telemetry_fork": "aria/ref/product_capability@v1",
+    "verify": true,
+    "wave": null
+  },
+  {
+    "anchor_tags": [
+      "COMPANY",
+      "PRODUCT",
+      "LAYER",
+      "LAUNCH",
+      "Wedge-to-Platform",
+      "MAP_TYPE"
+    ],
+    "binary_id": "BIN.REF.WEDGE_TO_PLATFORM",
+    "class": "REFINEMENT",
+    "crate": "aria_ref_wedge_to_platform",
+    "default_limit": null,
+    "layer": "REFINEMENT",
+    "neo4j_pass": true,
+    "node_types": [
+      "Company",
+      "Product",
+      "MarketSignal"
+    ],
+    "operator": "REF.WEDGE_TO_PLATFORM",
+    "package": "aria-ref-wedge-to-platform",
+    "parent": "MARKET_MAP",
+    "pass_through": false,
+    "property_key": null,
+    "relationship_types": [
+      "OFFERED_BY",
+      "HAS_CAPABILITY"
+    ],
+    "result_definition_ref": "map.ref.wedge_to_platform",
+    "retrieval_step": "memory",
+    "taxonomy": "Wedge-to-Platform",
+    "telemetry_fork": "aria/ref/wedge_to_platform@v1",
+    "verify": true,
+    "wave": null
+  },
+  {
     "anchor_tags": [],
     "binary_id": "BIN.REL.ABOUT",
     "class": "REL",

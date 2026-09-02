@@ -31,8 +31,94 @@ A structured query comes back. The worker does not pick the next binary.
 | operator `PEOPLE` | `endpoint_by_operator` |
 | cargo package | `endpoint_by_package("aria-telemetry-people")` |
 
-535 endpoints. Same envelope schema. Unique `binary_id` / declared types.
+560 endpoints (535 research/host + 25 `BIN.REF.*` map mixers). Same envelope schema. Unique `binary_id` / declared types. Map mixers ingest a dump callback or tagged graph and return only that map's neighborhood. Source unchanged. See [maps/MAPS.md](maps/MAPS.md).
 
 AriA is linked into every binary. AriA is not the Judge (Spawning §9).
 
+## Wire shape and the pruning contract
+
+Every operator — all 560 — serializes **one** closed key list in **one** order
+(`aria_operator::ENVELOPE_KEYS`; test-locked in `tests/wire_shape.rs`). Optional
+members are omitted when empty, never filled with skeletons.
+
+| key | always | worker keeps |
+|---|---|---|
+| `schema`, `schema_version` | yes | no (envelope tag) |
+| `binary_id`, `operator`, `crate` | yes | `binary_id` |
+| `plan_hash` | yes | when binding to an Observation Plan |
+| `requirement_id` | when bound | when bound |
+| `resultDefinitionRef` | yes | when routing by result type |
+| `anchor_tags` | when declared | no (catalog data) |
+| `subject_ids` | when non-empty | optional |
+| `nodes` / `relationships` / `properties` | when non-empty | **yes** — the vertical |
+| `verify`, `coverage_state` | yes | `coverage_state` |
+| `no_finding_reason`, `limitations` | when present | `limitations` (uncast_token = vocabulary gap) |
+| `content_hash` | yes | **yes** — independent identity of the vertical |
+| `graph` | yes | **yes** — class/layer/weight/height/shape/anchors |
+| `telemetry` | `--telemetry` only | no |
+
+Pruning is therefore one operation for every binary:
+
+```text
+keep = binary_id, coverage_state, nodes, relationships, properties, content_hash, graph
+```
+
+The node is stateless: input → process → output. Nothing is stored here; Neo4j
+is memory. The callback (`aria-work-v1`) carries **working verticals only**
+(`asked` vs `ops` is the audit). A worker that asks 560 and gets 9 back has been
+told, exactly, what the payload supports — the other 551 are absence, not bias.
+
 Remainder and test/efficiency modules: [PLAN.md](PLAN.md).
+
+## Real-time funnel (the only expand point)
+
+The node is **stateless**: `payload bytes + spec + RunOpts → envelope`. Neo4j holds long-term memory. The worker brings the data, gets a structured graphical result, and **prunes on its side**.
+
+```bash
+# Identify (ingest + project, no Φ Match) — the lightweight path
+printf '{"nodes":[{"id":1,"type":"Person","label":"Ada"}]}' \
+  | work --binary BIN.PEOPLE --steps 0
+
+# Batch: one Φ, N verticals. Working data only (asked ≠ ops).
+echo '{"ops":["BIN.PEOPLE","BIN.COMPANY","BIN.REF.COMPETITIVE_RADAR"],"in":{"nodes":[...]}}' \
+  | work --json
+
+# Hosted command list (what Aria compiles against)
+work --commands
+```
+
+`--steps 0` is the production identify funnel. Default `--steps 32` still runs Φ when a worker needs Match. Telemetry spine is **off** unless `--telemetry`.
+
+## Canonical envelope keys (one shape for all 560)
+
+Every operator serializes this list in this order. `?` members omit when empty/false/none.
+
+| key | required |
+|---|---|
+| `schema` | yes |
+| `binary_id` | yes |
+| `operator` | yes |
+| `schema_version` | yes |
+| `crate` | yes |
+| `plan_hash` | yes |
+| `requirement_id` | ? |
+| `subject_ids` | ? |
+| `resultDefinitionRef` | yes |
+| `anchor_tags` | ? |
+| `neo4j_hit` | ? |
+| `nodes` | ? |
+| `relationships` | ? |
+| `properties` | ? |
+| `verify` | yes |
+| `coverage_state` | yes |
+| `no_finding_reason` | ? |
+| `limitations` | ? |
+| `content_hash` | yes |
+| `graph` | ? |
+| `telemetry` | ? |
+
+**Worker prune (one operation, every operator):** keep `binary_id`, `coverage_state`, `nodes`, `relationships`, `properties`, `content_hash`, `graph`. Drop the rest. Do not prune per-binary.
+
+Production callback (`aria-work-v1`): `{schema, phi_once, asked, ops, results[]}`. `results` holds working verticals only. Absence is not a skeleton.
+
+Map mixers (`BIN.REF.*`) re-feed that callback. Source bytes never change. See [maps/MAPS.md](maps/MAPS.md).

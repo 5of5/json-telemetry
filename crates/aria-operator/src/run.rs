@@ -1,13 +1,14 @@
 //! Run Aria, then project a closed operator document.
 
-use aria_engine_backends::ipo::{canonical_json, sha256_hex, IpoEdge, IpoNode, NodeRecord};
+use aria_engine_backends::ipo::{canonical_json, sha256_hex, NodeRecord};
 use aria_engine_backends::telemetry::{transform, TelemetryRequest};
 use aria_engine_core::config::AriaConfig;
 use aria_engine_core::error::AriaError;
 use serde_json::{Map, Value};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use crate::envelope::{OperatorEnvelope, OperatorNode, OperatorRel, OperatorSpec};
+use crate::index::{norm, GraphIndex};
 use crate::{OPERATOR_ENVELOPE_V1, OPERATOR_SCHEMA_VERSION};
 
 /// Options a binary or test may pin. Defaults match `aria node`.
@@ -106,8 +107,8 @@ pub fn run_binary(
 ///
 /// This is the velocity path: Aria names operators from `commands()`, the
 /// gateway transforms the payload once, each binary remains an independent
-/// vertical (B0, B2). HOST layer is skipped unless the id is named explicitly
-/// (B6: host tools are not research operators).
+/// vertical (B0, B2). HOST identities always return an empty limitation
+/// envelope and never enter Φ (B6: host tools are not research operators).
 pub fn run_many(
     binary_ids: &[String],
     payload: &[u8],
@@ -116,6 +117,40 @@ pub fn run_many(
     if binary_ids.is_empty() {
         return Ok(Vec::new());
     }
+    let specs: Vec<&OperatorSpec> = binary_ids
+        .iter()
+        .map(|id| {
+            crate::spec_by_id(id).ok_or_else(|| OperatorError::UnknownBinary(id.clone()))
+        })
+        .collect::<Result<_, _>>()?;
+
+    let research = specs.iter().any(|s| !is_host(s));
+    let (nodes, edges, records, telem_value) = if research {
+        let telem = transform(telemetry_request(payload, opts))?;
+        let telem_value = if opts.include_telemetry {
+            Some(serde_json::to_value(&telem)?)
+        } else {
+            None
+        };
+        (telem.graph.nodes, telem.graph.edges, telem.records, telem_value)
+    } else {
+        (Vec::new(), Vec::new(), BTreeMap::new(), None)
+    };
+    // One indexing pass; every projector below is a lookup (ℙT2).
+    let ix = GraphIndex::build(&nodes, &edges, &records);
+
+    let mut out = Vec::with_capacity(specs.len());
+    for spec in specs {
+        out.push(if is_host(spec) {
+            host_envelope(spec, payload, opts)
+        } else {
+            envelope_from(spec, &ix, telem_value.as_ref(), payload, opts)
+        });
+    }
+    Ok(out)
+}
+
+fn telemetry_request(payload: &[u8], opts: &RunOpts) -> TelemetryRequest {
     let mut config = AriaConfig::default();
     if let Some(n) = opts.n_modes {
         config.n_modes = n;
@@ -125,32 +160,80 @@ pub fn run_many(
     }
     config.seed = opts.seed;
     config.allow_sub_spec_dims = opts.allow_sub_spec_dims;
-
-    let mut req = TelemetryRequest::new(payload.to_vec());
+    let ingest = flatten_work_telemetry(payload);
+    let mut req = TelemetryRequest::new(ingest);
     req.config = config;
     req.steps = opts.steps;
-    let telem = transform(req)?;
-    let telem_value = if opts.include_telemetry {
-        Some(serde_json::to_value(&telem)?)
-    } else {
-        None
-    };
+    req
+}
 
-    let mut out = Vec::with_capacity(binary_ids.len());
-    for id in binary_ids {
-        let spec = crate::spec_by_id(id)
-            .ok_or_else(|| OperatorError::UnknownBinary(id.clone()))?;
-        out.push(envelope_from(
-            spec,
-            &telem.graph.nodes,
-            &telem.graph.edges,
-            &telem.records,
-            telem_value.as_ref(),
-            payload,
-            opts,
-        ));
+/// Map mixers (and any binary) may ingest already-processed `aria-work-v1`
+/// callback JSON. Flatten working verticals into a graph. Original payload
+/// bytes stay the plan_hash input — this is a view, not a rewrite.
+fn flatten_work_telemetry(payload: &[u8]) -> Vec<u8> {
+    let Ok(v) = serde_json::from_slice::<Value>(payload) else {
+        return payload.to_vec();
+    };
+    if v.get("schema").and_then(Value::as_str) != Some(crate::WORK_V1) {
+        return payload.to_vec();
     }
-    Ok(out)
+    let results = v.get("results").and_then(Value::as_array);
+    let Some(results) = results else {
+        return payload.to_vec();
+    };
+    let mut nodes = Vec::new();
+    let mut seen = BTreeSet::new();
+    let mut edges = Vec::new();
+    for r in results {
+        if let Some(arr) = r.get("nodes").and_then(Value::as_array) {
+            for n in arr {
+                let Some(id) = n.get("id").and_then(Value::as_u64) else { continue };
+                if !seen.insert(id) {
+                    continue;
+                }
+                let kind = n
+                    .get("kind")
+                    .or_else(|| n.get("type"))
+                    .and_then(Value::as_str)
+                    .unwrap_or("Observation");
+                nodes.push(serde_json::json!({"id": id, "type": kind, "kind": kind}));
+            }
+        }
+        if let Some(arr) = r.get("relationships").and_then(Value::as_array) {
+            for e in arr {
+                let (Some(from), Some(to)) = (
+                    e.get("from").and_then(Value::as_u64),
+                    e.get("to").and_then(Value::as_u64),
+                ) else {
+                    continue;
+                };
+                let ty = e
+                    .get("type")
+                    .or_else(|| e.get("rel_type"))
+                    .and_then(Value::as_str)
+                    .unwrap_or("RELATED");
+                edges.push(serde_json::json!({"from": from, "to": to, "type": ty}));
+            }
+        }
+    }
+    serde_json::to_vec(&serde_json::json!({"nodes": nodes, "edges": edges}))
+        .unwrap_or_else(|_| payload.to_vec())
+}
+
+fn is_host(spec: &OperatorSpec) -> bool {
+    spec.layer.eq_ignore_ascii_case("HOST") || spec.class.eq_ignore_ascii_case("HOST")
+}
+
+fn is_transform(spec: &OperatorSpec) -> bool {
+    spec.layer.eq_ignore_ascii_case("TRANSFORM") || spec.class.eq_ignore_ascii_case("TRANSFORM")
+}
+
+fn is_tag_op(spec: &OperatorSpec) -> bool {
+    spec.class.eq_ignore_ascii_case("TAG") || spec.layer.eq_ignore_ascii_case("DEEP_TAG")
+}
+
+fn is_refinement(spec: &OperatorSpec) -> bool {
+    spec.layer.eq_ignore_ascii_case("REFINEMENT") || spec.class.eq_ignore_ascii_case("REFINEMENT")
 }
 
 fn parse_spec(spec_json: &str) -> Result<OperatorSpec, OperatorError> {
@@ -164,56 +247,59 @@ fn run_operator(
     payload: &[u8],
     opts: &RunOpts,
 ) -> Result<OperatorEnvelope, OperatorError> {
-    let mut config = AriaConfig::default();
-    if let Some(n) = opts.n_modes {
-        config.n_modes = n;
+    if is_host(spec) {
+        return Ok(host_envelope(spec, payload, opts));
     }
-    if let Some(d) = opts.latent_dim {
-        config.latent_dim = d;
-    }
-    config.seed = opts.seed;
-    config.allow_sub_spec_dims = opts.allow_sub_spec_dims;
-
-    let mut req = TelemetryRequest::new(payload.to_vec());
-    req.config = config;
-    req.steps = opts.steps;
-    let telem = transform(req)?;
+    let telem = transform(telemetry_request(payload, opts))?;
     let telem_value = if opts.include_telemetry {
         Some(serde_json::to_value(&telem)?)
     } else {
         None
     };
-    Ok(envelope_from(
+    let ix = GraphIndex::build(&telem.graph.nodes, &telem.graph.edges, &telem.records);
+    Ok(envelope_from(spec, &ix, telem_value.as_ref(), payload, opts))
+}
+
+fn host_envelope(spec: &OperatorSpec, payload: &[u8], opts: &RunOpts) -> OperatorEnvelope {
+    let limitation = if spec.verify {
+        "HOST is not a research operator (B6 Observe-first) — empty vertical, no Φ"
+    } else {
+        "catalog VERIFY=F — operator listed but not product-accepted"
+    };
+    close_envelope(
         spec,
-        &telem.graph.nodes,
-        &telem.graph.edges,
-        &telem.records,
-        telem_value.as_ref(),
+        Vec::new(),
+        Vec::new(),
+        Map::new(),
+        None,
         payload,
         opts,
-    ))
+        false,
+        Some(limitation.into()),
+        Vec::new(),
+    )
 }
 
 fn envelope_from(
     spec: &OperatorSpec,
-    inodes: &[IpoNode],
-    iedges: &[IpoEdge],
-    records: &BTreeMap<u64, NodeRecord>,
+    ix: &GraphIndex<'_>,
     telem_value: Option<&Value>,
     payload: &[u8],
     opts: &RunOpts,
 ) -> OperatorEnvelope {
-    let (nodes, relationships, properties) = project(spec, inodes, iedges, records);
+    if is_host(spec) || !spec.verify {
+        return host_envelope(spec, payload, opts);
+    }
+    let (nodes, relationships, properties) = project(spec, ix);
 
-    let truncated = spec
-        .default_limit
-        .is_some_and(|lim| nodes.len() > lim);
+    let truncated = spec.default_limit.is_some_and(|lim| nodes.len() > lim);
     let nodes = match spec.default_limit {
         Some(lim) if nodes.len() > lim => nodes.into_iter().take(lim).collect(),
         _ => nodes,
     };
     let keep: BTreeSet<u64> = nodes.iter().map(|n| n.id).collect();
-    let relationships: Vec<OperatorRel> = if spec.pass_through {
+    let passthrough = is_transform(spec) && spec.pass_through;
+    let relationships: Vec<OperatorRel> = if passthrough {
         relationships
     } else {
         relationships
@@ -222,13 +308,62 @@ fn envelope_from(
             .collect()
     };
 
-    let (coverage_state, no_finding_reason, limitations) = if !spec.verify {
-        (
-            "limitation".to_string(),
-            None,
-            vec!["catalog VERIFY=F — operator listed but not product-accepted".into()],
-        )
-    } else if nodes.is_empty() && properties.is_empty() && !spec.pass_through {
+    let extra = uncast_limitations(spec, &nodes, ix.records);
+    close_envelope(
+        spec,
+        nodes,
+        relationships,
+        properties,
+        telem_value,
+        payload,
+        opts,
+        truncated,
+        None,
+        extra,
+    )
+}
+
+fn uncast_limitations(
+    spec: &OperatorSpec,
+    nodes: &[OperatorNode],
+    records: &BTreeMap<u64, NodeRecord>,
+) -> Vec<String> {
+    if !(spec.layer.eq_ignore_ascii_case("ENTITY") || spec.class.eq_ignore_ascii_case("ENTITY")) {
+        return Vec::new();
+    }
+    if nodes.is_empty() {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    for n in nodes {
+        let Some(rec) = records.get(&n.id) else { continue };
+        for (field, value) in crate::typecast::uncast_fields(rec) {
+            out.push(format!("uncast_token: {field}={value}"));
+        }
+    }
+    out.sort();
+    out.dedup();
+    out.truncate(8);
+    out
+}
+
+#[allow(clippy::too_many_arguments)] // envelope assembly is a closed struct lowered to args
+fn close_envelope(
+    spec: &OperatorSpec,
+    nodes: Vec<OperatorNode>,
+    relationships: Vec<OperatorRel>,
+    properties: Map<String, Value>,
+    telem_value: Option<&Value>,
+    payload: &[u8],
+    opts: &RunOpts,
+    truncated: bool,
+    force_limitation: Option<String>,
+    extra_limitations: Vec<String>,
+) -> OperatorEnvelope {
+    let passthrough = is_transform(spec) && spec.pass_through;
+    let (coverage_state, no_finding_reason, mut limitations) = if let Some(lim) = force_limitation {
+        ("limitation".to_string(), None, vec![lim])
+    } else if nodes.is_empty() && properties.is_empty() && !passthrough {
         (
             "no-finding".to_string(),
             Some(format!(
@@ -242,6 +377,7 @@ fn envelope_from(
     } else {
         ("proposal".to_string(), None, Vec::new())
     };
+    limitations.extend(extra_limitations);
 
     let payload_obj = serde_json::json!({
         "nodes": nodes,
@@ -278,205 +414,112 @@ fn envelope_from(
         coverage_state,
         no_finding_reason,
         limitations,
+        graph: Some(crate::envelope::OperatorGraph::from_spec(spec)),
         content_hash,
         telemetry: telem_value.cloned(),
     }
 }
 
+/// Project one operator through the index. Same semantics as the historical
+/// linear scan (kind/label/`kind|type` for node types; explicit ∪ cast tags
+/// for anchors; edge type for relationships), now O(|matches|) per operator.
 #[allow(clippy::too_many_lines)]
 fn project(
     spec: &OperatorSpec,
-    inodes: &[IpoNode],
-    iedges: &[IpoEdge],
-    records: &BTreeMap<u64, NodeRecord>,
+    ix: &GraphIndex<'_>,
 ) -> (Vec<OperatorNode>, Vec<OperatorRel>, Map<String, Value>) {
-    if spec.pass_through {
-        let nodes = inodes
-            .iter()
-            .map(|n| OperatorNode {
-                id: n.id,
-                kind: n.node_type.as_str().to_string(),
-            })
-            .collect();
-        let rels = iedges
-            .iter()
-            .map(|e| OperatorRel {
-                from: e.from,
-                to: e.to,
-                rel_type: e.edge_type.as_str().to_string(),
-            })
-            .collect();
+    let node_of = |i: usize| OperatorNode {
+        id: ix.nodes[i].id,
+        kind: ix.nodes[i].node_type.as_str().to_string(),
+    };
+    let rel_of = |i: usize| OperatorRel {
+        from: ix.edges[i].from,
+        to: ix.edges[i].to,
+        rel_type: ix.edges[i].edge_type.as_str().to_string(),
+    };
+
+    if is_transform(spec) && spec.pass_through {
+        let nodes = (0..ix.nodes.len()).map(node_of).collect();
+        let rels = (0..ix.edges.len()).map(rel_of).collect();
         return (nodes, rels, Map::new());
     }
 
     let mut properties = Map::new();
     if let Some(key) = spec.property_key.as_deref() {
-        for rec in records.values() {
-            if let Some(v) = rec.properties.get(key) {
-                properties.insert(key.to_string(), v.clone());
-                break;
-            }
+        if let Some(v) = ix.first_prop(key) {
+            properties.insert(key.to_string(), v.clone());
         }
     }
 
-    let allowed_nodes: Vec<String> = spec
-        .node_types
-        .iter()
-        .map(|s| s.to_ascii_lowercase())
-        .collect();
-    let allowed_rels: Vec<String> = spec
-        .relationship_types
-        .iter()
-        .map(|s| s.to_ascii_lowercase())
-        .collect();
-    let allowed_tags: Vec<String> = spec
-        .anchor_tags
-        .iter()
-        .map(|s| s.to_ascii_lowercase())
-        .collect();
+    let allowed_nodes: Vec<String> = spec.node_types.iter().map(|s| norm(s)).collect();
+    let allowed_rels: Vec<String> = spec.relationship_types.iter().map(|s| norm(s)).collect();
+    let allowed_tags: Vec<String> = spec.anchor_tags.iter().map(|s| norm(s)).collect();
 
-    let nodes: Vec<OperatorNode> = inodes
-        .iter()
-        .filter_map(|n| {
-            let kind = n.node_type.as_str();
-            let rec = records.get(&n.id);
-            if spec.class == "TAG" || spec.layer == "DEEP_TAG" {
-                if tag_hits(rec, &allowed_tags, kind) {
-                    return Some(OperatorNode {
-                        id: n.id,
-                        kind: kind.to_string(),
-                    });
-                }
-                return None;
+    let mut cand: BTreeSet<usize> = BTreeSet::new();
+    if is_refinement(spec) {
+        ix.nodes_by_kindlike(&allowed_nodes, &mut cand);
+        ix.nodes_by_tag(&allowed_tags, &mut cand);
+    } else if is_tag_op(spec) {
+        if spec.layer.eq_ignore_ascii_case("RESIDUAL") {
+            // Residual TAG.* organizes by kind or by tag (S5).
+            ix.nodes_by_kind(&allowed_tags, &mut cand);
+            ix.nodes_by_tag(&allowed_tags, &mut cand);
+        } else {
+            // Family TAG + DEEP_TAG fire on tag evidence only; role tags fire
+            // on anchors that are not their own node types (S1).
+            let fire = firing_tags(spec, &allowed_nodes);
+            let tags = if fire.is_empty() { &allowed_tags } else { &fire };
+            ix.nodes_by_tag(tags, &mut cand);
+            if !allowed_nodes.is_empty() {
+                cand.retain(|&i| ix.kindlike_hits(i, &allowed_nodes));
             }
-            if spec.class == "PROP" {
-                return None;
-            }
-            if spec.class == "REL" {
-                return None;
-            }
-            if allowed_nodes.is_empty() {
-                return None;
-            }
-            if matches_kind(kind, rec, &allowed_nodes) {
-                Some(OperatorNode {
-                    id: n.id,
-                    kind: kind.to_string(),
-                })
-            } else {
-                None
-            }
-        })
-        .collect();
+        }
+    } else if spec.class != "PROP" && spec.class != "REL" && !allowed_nodes.is_empty() {
+        ix.nodes_by_kindlike(&allowed_nodes, &mut cand);
+    }
+    let nodes: Vec<OperatorNode> = cand.iter().map(|&i| node_of(i)).collect();
 
-    let keep: BTreeSet<u64> = if spec.class == "REL" {
-        inodes.iter().map(|n| n.id).collect()
+    let is_rel = spec.class == "REL";
+    let keep: HashSet<u64> = if is_rel {
+        ix.nodes.iter().map(|n| n.id).collect()
     } else {
         nodes.iter().map(|n| n.id).collect()
     };
 
-    let mut relationships: Vec<OperatorRel> = iedges
-        .iter()
-        .filter_map(|e| {
-            if !allowed_rels.is_empty() && !matches_token(e.edge_type.as_str(), &allowed_rels) {
-                return None;
-            }
-            if spec.class == "REL" {
-                return Some(OperatorRel {
-                    from: e.from,
-                    to: e.to,
-                    rel_type: e.edge_type.as_str().to_string(),
-                });
-            }
-            if keep.contains(&e.from) && keep.contains(&e.to) {
-                Some(OperatorRel {
-                    from: e.from,
-                    to: e.to,
-                    rel_type: e.edge_type.as_str().to_string(),
-                })
-            } else {
-                None
-            }
+    let mut relationships: Vec<OperatorRel> = ix
+        .edges_by_rel(&allowed_rels)
+        .into_iter()
+        .filter(|&i| {
+            let e = &ix.edges[i];
+            is_rel || (keep.contains(&e.from) && keep.contains(&e.to))
         })
+        .map(rel_of)
         .collect();
 
     // REL operators also list the endpoints they actually used.
-    let nodes = if spec.class == "REL" {
-        let used: BTreeSet<u64> = relationships
+    let nodes = if is_rel {
+        let used: BTreeSet<usize> = relationships
             .iter()
             .flat_map(|r| [r.from, r.to])
+            .filter_map(|id| ix.idx_of(id))
             .collect();
-        inodes
-            .iter()
-            .filter(|n| used.contains(&n.id))
-            .map(|n| OperatorNode {
-                id: n.id,
-                kind: n.node_type.as_str().to_string(),
-            })
-            .collect()
+        let nodes: Vec<OperatorNode> = used.into_iter().map(node_of).collect();
+        let ids: HashSet<u64> = nodes.iter().map(|n| n.id).collect();
+        relationships.retain(|r| ids.contains(&r.from) && ids.contains(&r.to));
+        nodes
     } else {
         nodes
     };
 
-    if spec.class == "REL" {
-        relationships.retain(|r| {
-            nodes.iter().any(|n| n.id == r.from) && nodes.iter().any(|n| n.id == r.to)
-        });
-    }
-
     (nodes, relationships, properties)
 }
 
-fn matches_token(got: &str, allowed: &[String]) -> bool {
-    let g = got.to_ascii_lowercase();
-    allowed.iter().any(|a| g == *a || g.replace('-', "_") == a.replace('-', "_"))
-}
-
-fn matches_kind(kind: &str, rec: Option<&NodeRecord>, allowed: &[String]) -> bool {
-    if matches_token(kind, allowed) {
-        return true;
-    }
-    if let Some(r) = rec {
-        if r.label
-            .as_deref()
-            .is_some_and(|l| matches_token(l, allowed))
-        {
-            return true;
-        }
-        if let Some(Value::String(k)) = r.properties.get("kind").or_else(|| r.properties.get("type"))
-        {
-            return matches_token(k, allowed);
-        }
-    }
-    false
-}
-
-fn tag_hits(rec: Option<&NodeRecord>, tags: &[String], kind: &str) -> bool {
-    if tags.is_empty() {
-        return false;
-    }
-    if matches_token(kind, tags) {
-        return true;
-    }
-    let Some(r) = rec else {
-        return false;
-    };
-    if r.label
-        .as_deref()
-        .is_some_and(|l| matches_token(l, tags))
-    {
-        return true;
-    }
-    match r.properties.get("tags") {
-        Some(Value::Array(arr)) => arr.iter().any(|v| {
-            v.as_str()
-                .is_some_and(|s| matches_token(s, tags))
-        }),
-        Some(Value::String(s)) => matches_token(s, tags),
-        _ => r
-            .properties
-            .get("tag")
-            .and_then(Value::as_str)
-            .is_some_and(|s| matches_token(s, tags)),
-    }
+/// Role-tag firing set: anchors that are not the operator's own node types.
+/// BUYER anchors BUYER_TAG|PERSON|ACCOUNT with node_types Person|Account → BUYER_TAG.
+fn firing_tags(spec: &OperatorSpec, node_types: &[String]) -> Vec<String> {
+    spec.anchor_tags
+        .iter()
+        .map(|t| norm(t))
+        .filter(|t| !node_types.contains(t))
+        .collect()
 }

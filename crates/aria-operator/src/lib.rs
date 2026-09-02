@@ -8,7 +8,9 @@
 
 mod dispatch;
 mod envelope;
+mod index;
 mod run;
+mod typecast;
 mod work_api;
 #[cfg(feature = "cli")]
 mod work_cli;
@@ -16,10 +18,14 @@ mod work_cli;
 pub use dispatch::{
     endpoint_by_binary_id, endpoint_by_operator, endpoint_by_package, WorkerEndpoint,
 };
-pub use envelope::{OperatorEnvelope, OperatorNode, OperatorRel, OperatorSpec};
+pub use envelope::{
+    OperatorEnvelope, OperatorGraph, OperatorNode, OperatorRel, OperatorSpec, ENVELOPE_KEYS,
+};
 pub use run::{run_binary, run_many, run_spec, OperatorError, RunOpts};
+pub use typecast::{cast_lexicon, cast_tags, uncast_fields};
 pub use work_api::{
-    commands_json, execute_work, looks_like_work_command, WorkRequest, WorkResponse, WORK_V1,
+    callback_results, commands_json, execute_work, looks_like_work_command, WorkRequest,
+    WorkResponse, WORK_V1,
 };
 #[cfg(feature = "cli")]
 pub use work_cli::work_main;
@@ -38,12 +44,12 @@ use std::sync::OnceLock;
 pub const OPERATOR_ENVELOPE_V1: &str = "aria-operator-envelope-v1";
 /// Closed envelope semver carried on every operator document.
 pub const OPERATOR_SCHEMA_VERSION: &str = "1.0.0";
-/// Frozen catalog shipped with this crate (all 535 rows).
+/// Frozen catalog shipped with this crate (560 rows: 535 research/host + 25 map mixers).
 pub const CATALOG_JSON: &str = include_str!("../catalog/operators.json");
 
 static CATALOG: OnceLock<Vec<OperatorSpec>> = OnceLock::new();
 
-/// Frozen catalog (535 rows). Parsed once per process.
+/// Frozen catalog (560 rows). Parsed once per process.
 #[must_use]
 pub fn catalog() -> &'static [OperatorSpec] {
     CATALOG
@@ -58,6 +64,59 @@ pub fn catalog() -> &'static [OperatorSpec] {
 #[must_use]
 pub fn spec_by_id(binary_id: &str) -> Option<&'static OperatorSpec> {
     catalog().iter().find(|s| s.binary_id == binary_id)
+}
+
+/// Wave ladder height (sheet 12 `wave` column): A→1, B→2, C→3, D→4.
+#[must_use]
+pub fn wave_height(wave: Option<&str>) -> u8 {
+    match wave.unwrap_or("") {
+        "A" => 1,
+        "B" => 2,
+        "C" => 3,
+        "D" => 4,
+        _ => 0,
+    }
+}
+
+/// Token → (category weight, max wave height) over the frozen catalog.
+/// Weight = # of research binaries declaring the token in 02/03/04 terms
+/// (anchor_tags, node/rel types, property keys); HOST declarations weigh
+/// nothing (B6). Parsed once per process; fully deterministic.
+fn token_stats() -> &'static std::collections::BTreeMap<String, (u32, u8)> {
+    use std::collections::BTreeMap;
+    static STATS: OnceLock<BTreeMap<String, (u32, u8)>> = OnceLock::new();
+    STATS.get_or_init(|| {
+        let mut m: BTreeMap<String, (u32, u8)> = BTreeMap::new();
+        for s in catalog().iter().filter(|s| s.layer != "HOST") {
+            let h = wave_height(s.wave.as_deref());
+            let mut bump = |t: &str| {
+                let e = m.entry(t.to_ascii_lowercase()).or_insert((0, 0));
+                e.0 += 1;
+                e.1 = e.1.max(h);
+            };
+            for t in s
+                .anchor_tags
+                .iter()
+                .chain(s.node_types.iter())
+                .chain(s.relationship_types.iter())
+            {
+                bump(t);
+            }
+            if let Some(k) = s.property_key.as_deref() {
+                bump(k);
+            }
+        }
+        m
+    })
+}
+
+/// (weight, height) of one grammar token: kind, rel type, tag, property key.
+#[must_use]
+pub fn token_stat(token: &str) -> (u32, u8) {
+    token_stats()
+        .get(&token.to_ascii_lowercase())
+        .copied()
+        .unwrap_or((0, 0))
 }
 
 #[cfg(feature = "cli")]

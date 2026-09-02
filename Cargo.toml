@@ -7,7 +7,6 @@ members = [
     "crates/aria-wasm",
     "crates/aria-training",
     "crates/aria-operator",
-    "crates/aria-work",
     "python/aria-py",
     "crates/operators/*",
 ]
@@ -18,7 +17,6 @@ default-members = [
     "crates/aria-wasm",
     "crates/aria-training",
     "crates/aria-operator",
-    "crates/aria-work",
     "python/aria-py",
 ]
 
@@ -42,7 +40,7 @@ readme = "README.md"
 # 535 operator programs stay workspace-only (publish = false).
 aria-engine-core = { version = "0.2.1", path = "crates/aria-core" }
 aria-engine-backends = { version = "0.2.1", path = "crates/aria-backends" }
-aria-json-telemetry = { version = "0.2.0", path = "crates/aria-operator" }
+aria-json-telemetry = { version = "0.2.1", path = "crates/aria-operator" }
 
 # Serialization / config
 serde = { version = "1", features = ["derive"] }

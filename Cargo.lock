@@ -148,7 +148,7 @@ dependencies = [
 
 [[package]]
 name = "aria-json-telemetry"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "aria-engine-backends",
  "aria-engine-core",
@@ -160,6 +160,181 @@ dependencies = [
 
 [[package]]
 name = "aria-optical-jepa-graph"
+version = "0.2.1"
+dependencies = [
+ "aria-json-telemetry",
+]
+
+[[package]]
+name = "aria-ref-account-targeting"
+version = "0.2.1"
+dependencies = [
+ "aria-json-telemetry",
+]
+
+[[package]]
+name = "aria-ref-buyer-persona-relationship"
+version = "0.2.1"
+dependencies = [
+ "aria-json-telemetry",
+]
+
+[[package]]
+name = "aria-ref-category-creation-timeline"
+version = "0.2.1"
+dependencies = [
+ "aria-json-telemetry",
+]
+
+[[package]]
+name = "aria-ref-category-galaxy"
+version = "0.2.1"
+dependencies = [
+ "aria-json-telemetry",
+]
+
+[[package]]
+name = "aria-ref-category-stack"
+version = "0.2.1"
+dependencies = [
+ "aria-json-telemetry",
+]
+
+[[package]]
+name = "aria-ref-competitive-radar"
+version = "0.2.1"
+dependencies = [
+ "aria-json-telemetry",
+]
+
+[[package]]
+name = "aria-ref-competitor-battlecard"
+version = "0.2.1"
+dependencies = [
+ "aria-json-telemetry",
+]
+
+[[package]]
+name = "aria-ref-customer-logos"
+version = "0.2.1"
+dependencies = [
+ "aria-json-telemetry",
+]
+
+[[package]]
+name = "aria-ref-developer-ecosystem"
+version = "0.2.1"
+dependencies = [
+ "aria-json-telemetry",
+]
+
+[[package]]
+name = "aria-ref-ecosystem-gravity"
+version = "0.2.1"
+dependencies = [
+ "aria-json-telemetry",
+]
+
+[[package]]
+name = "aria-ref-founder-operator-lineage"
+version = "0.2.1"
+dependencies = [
+ "aria-json-telemetry",
+]
+
+[[package]]
+name = "aria-ref-funding-momentum"
+version = "0.2.1"
+dependencies = [
+ "aria-json-telemetry",
+]
+
+[[package]]
+name = "aria-ref-icp-expansion"
+version = "0.2.1"
+dependencies = [
+ "aria-json-telemetry",
+]
+
+[[package]]
+name = "aria-ref-influence-network"
+version = "0.2.1"
+dependencies = [
+ "aria-json-telemetry",
+]
+
+[[package]]
+name = "aria-ref-investor-syndicate"
+version = "0.2.1"
+dependencies = [
+ "aria-json-telemetry",
+]
+
+[[package]]
+name = "aria-ref-market-entry"
+version = "0.2.1"
+dependencies = [
+ "aria-json-telemetry",
+]
+
+[[package]]
+name = "aria-ref-market-heat-island"
+version = "0.2.1"
+dependencies = [
+ "aria-json-telemetry",
+]
+
+[[package]]
+name = "aria-ref-market-intelligence-brief"
+version = "0.2.1"
+dependencies = [
+ "aria-json-telemetry",
+]
+
+[[package]]
+name = "aria-ref-market-map-canvas"
+version = "0.2.1"
+dependencies = [
+ "aria-json-telemetry",
+]
+
+[[package]]
+name = "aria-ref-market-maturity"
+version = "0.2.1"
+dependencies = [
+ "aria-json-telemetry",
+]
+
+[[package]]
+name = "aria-ref-market-white-space"
+version = "0.2.1"
+dependencies = [
+ "aria-json-telemetry",
+]
+
+[[package]]
+name = "aria-ref-narrative-positioning"
+version = "0.2.1"
+dependencies = [
+ "aria-json-telemetry",
+]
+
+[[package]]
+name = "aria-ref-partnership-path"
+version = "0.2.1"
+dependencies = [
+ "aria-json-telemetry",
+]
+
+[[package]]
+name = "aria-ref-product-capability"
+version = "0.2.1"
+dependencies = [
+ "aria-json-telemetry",
+]
+
+[[package]]
+name = "aria-ref-wedge-to-platform"
 version = "0.2.1"
 dependencies = [
  "aria-json-telemetry",
@@ -3853,13 +4028,6 @@ dependencies = [
  "serde_json",
  "tempfile",
  "thiserror",
-]
-
-[[package]]
-name = "aria-work"
-version = "0.2.1"
-dependencies = [
- "aria-json-telemetry",
 ]
 
 [[package]]

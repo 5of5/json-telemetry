@@ -30,20 +30,25 @@ fn spec_json(id: &str) -> String {
 }
 
 #[test]
-fn catalog_has_535_unique_ids_crates_and_packages() {
+fn catalog_has_560_unique_ids_crates_and_packages() {
     let cat = catalog();
-    assert_eq!(cat.len(), 535);
+    assert_eq!(cat.len(), 560);
     let ids: BTreeSet<_> = cat.iter().map(|s| s.binary_id.as_str()).collect();
     let crates: BTreeSet<_> = cat.iter().map(|s| s.crate_name.as_str()).collect();
     let pkgs: BTreeSet<_> = cat.iter().map(|s| s.package.as_str()).collect();
-    assert_eq!(ids.len(), 535);
-    assert_eq!(crates.len(), 535);
-    assert_eq!(pkgs.len(), 535);
+    assert_eq!(ids.len(), 560);
+    assert_eq!(crates.len(), 560);
+    assert_eq!(pkgs.len(), 560);
     assert!(ids.contains("BIN.PEOPLE"));
     assert!(ids.contains("BIN.ARIA"));
     assert!(ids.contains("BIN.DOC_EXTRACT"));
     assert!(ids.contains("BIN.NODE.COMPANY"));
     assert!(ids.contains("BIN.TAG.PERSON_FOUNDER"));
+    assert!(ids.contains("BIN.REF.COMPETITIVE_RADAR"));
+    assert_eq!(
+        cat.iter().filter(|s| s.layer == "REFINEMENT").count(),
+        25
+    );
 }
 
 #[test]
