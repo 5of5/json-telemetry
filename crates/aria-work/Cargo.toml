@@ -1,0 +1,26 @@
+[package]
+name = "aria-work"
+description = "The work gateway — workers pass any catalog binary through one entry; each binary stays its own crate"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation.workspace = true
+readme = "README.md"
+rust-version.workspace = true
+publish = false
+
+[[bin]]
+name = "work"
+path = "src/main.rs"
+
+[dependencies]
+aria-operator = { path = "../aria-operator" }
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

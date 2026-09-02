@@ -138,8 +138,9 @@ pub struct OperatorEnvelope {
     pub limitations: Vec<String>,
     /// Hash of the operator payload (nodes + rels + properties), not notes.
     pub content_hash: String,
-    /// Shared Aria spine. Not an API contract; PCVC/Supervisor may read it.
-    pub telemetry: Value,
+    /// Shared Aria spine. Optional (sheet 09). Not an API contract.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub telemetry: Option<Value>,
 }
 
 impl OperatorEnvelope {

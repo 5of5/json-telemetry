@@ -27,6 +27,10 @@ pub struct RunOpts {
     pub plan_hash: Option<String>,
     /// Coverage key.
     pub requirement_id: Option<String>,
+    /// Embed `aria-telemetry-query-v1` under `telemetry` (sheet 09: optional).
+    /// Default off: the Coordinator reads the vertical. Workers that need the
+    /// spine pass `--telemetry`.
+    pub include_telemetry: bool,
 }
 
 impl Default for RunOpts {
@@ -39,6 +43,7 @@ impl Default for RunOpts {
             allow_sub_spec_dims: false,
             plan_hash: None,
             requirement_id: None,
+            include_telemetry: false,
         }
     }
 }
@@ -55,6 +60,9 @@ pub enum OperatorError {
     /// Envelope serialization.
     #[error("operator json: {0}")]
     Json(#[from] serde_json::Error),
+    /// Catalog lookup missed.
+    #[error("unknown binary: {0}")]
+    UnknownBinary(String),
 }
 
 impl OperatorError {
@@ -65,7 +73,10 @@ impl OperatorError {
         match self {
             OperatorError::Aria(AriaError::InvariantViolation(_)) => 1,
             OperatorError::Aria(AriaError::Io(_)) => 3,
-            OperatorError::Aria(_) | OperatorError::Spec(_) | OperatorError::Json(_) => 2,
+            OperatorError::Aria(_)
+            | OperatorError::Spec(_)
+            | OperatorError::Json(_)
+            | OperatorError::UnknownBinary(_) => 2,
         }
     }
 }
@@ -78,6 +89,17 @@ pub fn run_spec(
 ) -> Result<OperatorEnvelope, OperatorError> {
     let spec = parse_spec(spec_json)?;
     run_operator(&spec, payload, opts)
+}
+
+/// Gateway entry: run any catalog binary by `BIN.*` id.
+pub fn run_binary(
+    binary_id: &str,
+    payload: &[u8],
+    opts: &RunOpts,
+) -> Result<OperatorEnvelope, OperatorError> {
+    let spec = crate::spec_by_id(binary_id)
+        .ok_or_else(|| OperatorError::UnknownBinary(binary_id.to_string()))?;
+    run_operator(spec, payload, opts)
 }
 
 fn parse_spec(spec_json: &str) -> Result<OperatorSpec, OperatorError> {
@@ -183,7 +205,11 @@ fn run_operator(
         no_finding_reason,
         limitations,
         content_hash,
-        telemetry: telem_value,
+        telemetry: if opts.include_telemetry {
+            Some(telem_value)
+        } else {
+            None
+        },
     })
 }
 

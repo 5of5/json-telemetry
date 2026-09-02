@@ -12,11 +12,12 @@ sealed Observation Plan
 aria_operator::endpoint_by_binary_id("BIN.PEOPLE")
             │
             ▼
-cargo run -p aria-telemetry-people -- --in payload.json
+work --binary BIN.PEOPLE --in payload.json
+# or still: cargo run -p aria-telemetry-people -- --in payload.json
             │
             ▼
 closed operator JSON  (vertical: only PEOPLE types)
-    telemetry: aria-telemetry-query-v1   ← shared spine under every binary
+    telemetry?  aria-telemetry-query-v1   ← optional spine (`--telemetry`)
 ```
 
 Unstructured JSON (notes, facts, tags, a typed graph, a spreadsheet) goes in.
@@ -33,3 +34,5 @@ A structured query comes back. The worker does not pick the next binary.
 535 endpoints. Same envelope schema. Unique `binary_id` / declared types.
 
 AriA is linked into every binary. AriA is not the Judge (Spawning §9).
+
+Remainder and test/efficiency modules: [PLAN.md](PLAN.md).

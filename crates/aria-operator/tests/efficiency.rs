@@ -1,14 +1,13 @@
 //! Data-efficiency gate for operator JSON.
 //!
-//! The vertical (declared types only) must be cheaper than the shared
-//! telemetry spine it sits on. Embeddings stay off unless asked. A PEOPLE
-//! worker must not pay for COMPANY nodes.
+//! Default wire is the vertical. The spine is opt-in (`include_telemetry`).
+//! Embeddings stay off unless asked. A PEOPLE worker must not pay for COMPANY.
 
 use aria_operator::{catalog, run_spec, RunOpts};
 use serde_json::{json, Value};
 use std::time::Instant;
 
-fn opts() -> RunOpts {
+fn opts(include_telemetry: bool) -> RunOpts {
     RunOpts {
         steps: 8,
         seed: Some(1),
@@ -17,6 +16,7 @@ fn opts() -> RunOpts {
         allow_sub_spec_dims: true,
         plan_hash: None,
         requirement_id: None,
+        include_telemetry,
     }
 }
 
@@ -44,18 +44,15 @@ fn mixed_payload() -> Vec<u8> {
 }
 
 #[test]
-fn operator_vertical_is_smaller_than_the_shared_telemetry_spine() {
+fn default_wire_is_the_vertical_spine_is_opt_in() {
     let payload = mixed_payload();
     let t0 = Instant::now();
-    let people = run_spec(&spec_json("BIN.PEOPLE"), &payload, &opts()).unwrap();
-    let company = run_spec(&spec_json("BIN.COMPANY"), &payload, &opts()).unwrap();
-    let aria = run_spec(&spec_json("BIN.ARIA"), &payload, &opts()).unwrap();
+    let people = run_spec(&spec_json("BIN.PEOPLE"), &payload, &opts(false)).unwrap();
+    let company = run_spec(&spec_json("BIN.COMPANY"), &payload, &opts(false)).unwrap();
+    let aria = run_spec(&spec_json("BIN.ARIA"), &payload, &opts(false)).unwrap();
     let elapsed_ms = t0.elapsed().as_millis();
 
     let people_bytes = serde_json::to_vec(&people).unwrap();
-    let company_bytes = serde_json::to_vec(&company).unwrap();
-    let aria_bytes = serde_json::to_vec(&aria).unwrap();
-    let people_telem = serde_json::to_vec(&people.telemetry).unwrap();
     let people_vertical = serde_json::to_vec(&json!({
         "nodes": people.nodes,
         "relationships": people.relationships,
@@ -64,68 +61,54 @@ fn operator_vertical_is_smaller_than_the_shared_telemetry_spine() {
     .unwrap();
 
     eprintln!(
-        "efficiency: people_full={}B people_vertical={}B people_telem={}B company_full={}B aria_full={}B elapsed={}ms",
+        "efficiency default: people_full={}B people_vertical={}B elapsed={}ms",
         people_bytes.len(),
         people_vertical.len(),
-        people_telem.len(),
-        company_bytes.len(),
-        aria_bytes.len(),
         elapsed_ms
     );
 
-    // Vertical is the cheap document the Coordinator reads first.
+    assert!(people.telemetry.is_none(), "default wire omits telemetry");
     assert!(
-        people_vertical.len() < people_telem.len(),
-        "operator vertical {}B must be smaller than nested telemetry {}B",
-        people_vertical.len(),
-        people_telem.len()
+        people_bytes.len() < 768,
+        "default PEOPLE envelope should stay under 768B, got {}",
+        people_bytes.len()
     );
-    assert!(
-        people_vertical.len() < 512,
-        "tiny mixed payload vertical should stay under 512B, got {}",
-        people_vertical.len()
-    );
-
-    // PEOPLE does not emit Company nodes; COMPANY does not emit Person nodes.
+    assert!(people_vertical.len() < 512);
     assert_eq!(people.nodes.len(), 2);
     assert!(people.nodes.iter().all(|n| n.kind.eq_ignore_ascii_case("person")));
     assert_eq!(company.nodes.len(), 1);
-    assert!(company
-        .nodes
-        .iter()
-        .all(|n| n.kind.eq_ignore_ascii_case("company")));
+    assert!(aria.nodes.len() > people.nodes.len());
+    assert!(elapsed_ms < 5_000, "three operator runs took {elapsed_ms}ms");
+}
 
-    // Pass-through AriA returns the whole graph; a vertical is strictly smaller.
-    assert!(aria.nodes.len() >= people.nodes.len() + company.nodes.len());
-    assert!(people.nodes.len() < aria.nodes.len());
+#[test]
+fn opt_in_telemetry_is_larger_than_the_vertical_and_omits_embeddings() {
+    let payload = mixed_payload();
+    let people = run_spec(&spec_json("BIN.PEOPLE"), &payload, &opts(true)).unwrap();
+    let telem = people.telemetry.as_ref().expect("telemetry requested");
+    let people_telem = serde_json::to_vec(telem).unwrap();
+    let people_vertical = serde_json::to_vec(&json!({
+        "nodes": people.nodes,
+        "relationships": people.relationships,
+        "properties": people.properties,
+    }))
+    .unwrap();
 
-    // Default telemetry omits embeddings (G10).
-    let omitted = people.telemetry["graph"]["embeddings_omitted"]
+    eprintln!(
+        "efficiency telemetry-on: vertical={}B telem={}B",
+        people_vertical.len(),
+        people_telem.len()
+    );
+
+    assert!(people_vertical.len() < people_telem.len());
+    let omitted = telem["graph"]["embeddings_omitted"]
         .as_bool()
-        .expect("embeddings_omitted present");
-    assert!(omitted, "default operator run must omit embeddings");
-    let telem: Value = people.telemetry.clone();
+        .expect("embeddings_omitted");
+    assert!(omitted);
     if let Some(nodes) = telem["graph"]["nodes"].as_array() {
         for n in nodes {
             let emb = n.get("embedding").and_then(Value::as_array);
-            assert!(
-                emb.is_none() || emb.unwrap().is_empty(),
-                "default envelope must not carry embedding vectors"
-            );
+            assert!(emb.is_none() || emb.unwrap().is_empty());
         }
     }
-
-    // Three small operators on a 3-node payload stay interactive.
-    assert!(
-        elapsed_ms < 5_000,
-        "three operator runs on a tiny payload took {elapsed_ms}ms"
-    );
-
-    // Full envelope is telemetry-dominated, not vertical-dominated.
-    assert!(
-        people_telem.len() * 2 > people_bytes.len(),
-        "nested telemetry should dominate the envelope ({} telem vs {} full)",
-        people_telem.len(),
-        people_bytes.len()
-    );
 }

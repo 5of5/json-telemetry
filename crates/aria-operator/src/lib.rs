@@ -14,7 +14,7 @@ pub use dispatch::{
     endpoint_by_binary_id, endpoint_by_operator, endpoint_by_package, WorkerEndpoint,
 };
 pub use envelope::{OperatorEnvelope, OperatorNode, OperatorRel, OperatorSpec};
-pub use run::{run_spec, OperatorError, RunOpts};
+pub use run::{run_binary, run_spec, OperatorError, RunOpts};
 
 use clap::Parser;
 use std::io::{self, Read, Write};
@@ -72,6 +72,9 @@ struct Cli {
     /// Coverage key from the sealed plan.
     #[arg(long)]
     requirement_id: Option<String>,
+    /// Embed the Aria telemetry spine (sheet 09: optional). Off by default.
+    #[arg(long)]
+    telemetry: bool,
 }
 
 /// CLI entry used by every generated `[[bin]]`. Returns a process exit code.
@@ -94,6 +97,7 @@ fn bin_main_inner(spec_json: &str) -> Result<(), i32> {
         seed: cli.seed,
         plan_hash: cli.plan_hash,
         requirement_id: cli.requirement_id,
+        include_telemetry: cli.telemetry,
         ..RunOpts::default()
     };
 

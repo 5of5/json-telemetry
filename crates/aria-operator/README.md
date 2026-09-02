@@ -15,6 +15,7 @@ B0: the operator body contains only the types this crate declared. B1: crates
 do not share mutable calculation state. B7: Aria is never a judge.
 
 A worker is pointed at one crate. See [WORKER.md](WORKER.md).
+What remains: [PLAN.md](PLAN.md).
 
 Regenerate crates from the sheet dump:
 

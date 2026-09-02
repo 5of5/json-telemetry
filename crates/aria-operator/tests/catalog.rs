@@ -2,8 +2,8 @@
 
 use aria_engine_backends::ipo::TELEMETRY_QUERY_V1;
 use aria_operator::{
-    catalog, endpoint_by_binary_id, endpoint_by_operator, run_spec, OperatorEnvelope, RunOpts,
-    OPERATOR_ENVELOPE_V1,
+    catalog, endpoint_by_binary_id, endpoint_by_operator, run_binary, run_spec, OperatorEnvelope,
+    RunOpts, OPERATOR_ENVELOPE_V1,
 };
 use serde_json::{json, Value};
 use std::collections::BTreeSet;
@@ -17,6 +17,7 @@ fn opts() -> RunOpts {
         allow_sub_spec_dims: true,
         plan_hash: None,
         requirement_id: None,
+        include_telemetry: true,
     }
 }
 
@@ -66,9 +67,11 @@ fn people_and_company_are_distinct_closed_json_over_the_same_telemetry_schema() 
     assert_ne!(people.binary_id, company.binary_id);
     assert_ne!(people.crate_name, company.crate_name);
 
-    assert_eq!(people.telemetry["schema"], TELEMETRY_QUERY_V1);
-    assert_eq!(company.telemetry["schema"], TELEMETRY_QUERY_V1);
-    assert_eq!(people.telemetry["source_sha256"], company.telemetry["source_sha256"]);
+    let pt = people.telemetry.as_ref().expect("telemetry requested");
+    let ct = company.telemetry.as_ref().expect("telemetry requested");
+    assert_eq!(pt["schema"], TELEMETRY_QUERY_V1);
+    assert_eq!(ct["schema"], TELEMETRY_QUERY_V1);
+    assert_eq!(pt["source_sha256"], ct["source_sha256"]);
 
     assert!(people.nodes.iter().all(|n| n.kind.eq_ignore_ascii_case("person")));
     assert!(company.nodes.iter().all(|n| n.kind.eq_ignore_ascii_case("company")));
@@ -87,7 +90,10 @@ fn aria_transform_operator_passes_the_graph_through() {
     assert_eq!(env.binary_id, "BIN.ARIA");
     assert_eq!(env.coverage_state, "proposal");
     assert!(!env.nodes.is_empty());
-    assert_eq!(env.telemetry["schema"], TELEMETRY_QUERY_V1);
+    assert_eq!(
+        env.telemetry.as_ref().expect("telemetry")["schema"],
+        TELEMETRY_QUERY_V1
+    );
 }
 
 #[test]
@@ -118,6 +124,20 @@ impl NoTrust for OperatorEnvelope {
         let v: Value = serde_json::to_value(self).unwrap();
         v.get("trust").is_none() && v.get("coverage_score").is_none()
     }
+}
+
+#[test]
+fn gateway_run_binary_equals_named_spec() {
+    let payload = serde_json::to_vec(&json!({
+        "nodes": [{"id": 1, "type": "Person", "label": "Ada"}]
+    }))
+    .unwrap();
+    let via_gw = run_binary("BIN.PEOPLE", &payload, &opts()).unwrap();
+    let via_spec = run_spec(&spec_json("BIN.PEOPLE"), &payload, &opts()).unwrap();
+    assert_eq!(via_gw.binary_id, via_spec.binary_id);
+    assert_eq!(via_gw.nodes, via_spec.nodes);
+    assert_eq!(via_gw.content_hash, via_spec.content_hash);
+    assert!(run_binary("BIN.NOT_A_THING", &payload, &opts()).is_err());
 }
 
 #[test]
