@@ -1,13 +1,13 @@
 [package]
 name = "aria-work"
-description = "The work gateway — workers pass any catalog binary through one entry; each binary stays its own crate"
+description = "Workspace alias for the work gateway binary (published as aria-json-telemetry --bin work)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
-repository.workspace = true
-homepage.workspace = true
-documentation.workspace = true
+repository = "https://github.com/5of5/json-telemetry"
+homepage = "https://github.com/5of5/json-telemetry"
+documentation = "https://docs.rs/aria-json-telemetry"
 readme = "README.md"
 rust-version.workspace = true
 publish = false
@@ -17,10 +17,7 @@ name = "work"
 path = "src/main.rs"
 
 [dependencies]
-aria-operator = { path = "../aria-operator" }
-clap.workspace = true
-serde.workspace = true
-serde_json.workspace = true
+aria-json-telemetry = { workspace = true, features = ["cli"] }
 
 [lints]
 workspace = true

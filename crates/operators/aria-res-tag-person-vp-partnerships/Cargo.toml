@@ -20,7 +20,7 @@ name = 'aria-res-tag-person-vp-partnerships'
 path = "src/main.rs"
 
 [dependencies]
-aria-operator = { path = "../../aria-operator" }
+aria-json-telemetry = { path = "../../aria-operator", version = "0.2.0", features = ["cli"] }
 
 [lints]
 workspace = true

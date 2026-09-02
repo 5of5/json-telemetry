@@ -1,21 +1,43 @@
 [package]
-name = "aria-operator"
-description = "Closed JSON operator envelope wrapping the Aria telemetry transform — shared by every catalog binary"
-version.workspace = true
+name = "aria-json-telemetry"
+description = "Aria JSON telemetry — closed operator envelopes, hosted command list, work gateway. 535 catalog identities; one transform."
+version = "0.2.0"
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
-repository.workspace = true
-homepage.workspace = true
-documentation.workspace = true
+repository = "https://github.com/5of5/json-telemetry"
+homepage = "https://github.com/5of5/json-telemetry"
+documentation = "https://docs.rs/aria-json-telemetry"
 readme = "README.md"
 rust-version.workspace = true
-publish = false
+keywords = ["aria", "telemetry", "json", "graph", "operator"]
+categories = ["science", "command-line-utilities", "data-structures"]
+publish = true
+include = [
+    "src/**/*",
+    "catalog/**/*",
+    "README.md",
+    "WORKER.md",
+    "PLAN.md",
+]
+
+[lib]
+name = "aria_operator"
+path = "src/lib.rs"
+
+[[bin]]
+name = "work"
+path = "src/bin/work.rs"
+required-features = ["cli"]
+
+[features]
+default = ["cli"]
+cli = ["dep:clap"]
 
 [dependencies]
-aria-engine-core = { version = "0.2.0", path = "../aria-core" }
-aria-engine-backends = { version = "0.2.0", path = "../aria-backends" }
-clap.workspace = true
+aria-engine-core = { workspace = true }
+aria-engine-backends = { workspace = true }
+clap = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

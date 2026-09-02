@@ -1,4 +1,15 @@
-# aria-operator
+# aria-json-telemetry
+
+Published crate for Aria JSON telemetry (`aria_operator` rustc name).
+
+```toml
+aria-json-telemetry = "0.2.0"
+```
+
+```bash
+cargo add aria-json-telemetry
+cargo install aria-json-telemetry --bin work
+```
 
 Shared library for the Binary Repository v1 operator crates.
 

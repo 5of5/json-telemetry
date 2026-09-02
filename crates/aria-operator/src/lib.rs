@@ -10,6 +10,8 @@ mod dispatch;
 mod envelope;
 mod run;
 mod work_api;
+#[cfg(feature = "cli")]
+mod work_cli;
 
 pub use dispatch::{
     endpoint_by_binary_id, endpoint_by_operator, endpoint_by_package, WorkerEndpoint,
@@ -19,10 +21,16 @@ pub use run::{run_binary, run_many, run_spec, OperatorError, RunOpts};
 pub use work_api::{
     commands_json, execute_work, looks_like_work_command, WorkRequest, WorkResponse, WORK_V1,
 };
+#[cfg(feature = "cli")]
+pub use work_cli::work_main;
 
+#[cfg(feature = "cli")]
 use clap::Parser;
+#[cfg(feature = "cli")]
 use std::io::{self, Read, Write};
+#[cfg(feature = "cli")]
 use std::path::PathBuf;
+#[cfg(feature = "cli")]
 use std::process::ExitCode;
 use std::sync::OnceLock;
 
@@ -52,6 +60,7 @@ pub fn spec_by_id(binary_id: &str) -> Option<&'static OperatorSpec> {
     catalog().iter().find(|s| s.binary_id == binary_id)
 }
 
+#[cfg(feature = "cli")]
 #[derive(Parser, Debug)]
 #[command(
     name = "aria-operator",
@@ -82,6 +91,7 @@ struct Cli {
 }
 
 /// CLI entry used by every generated `[[bin]]`. Returns a process exit code.
+#[cfg(feature = "cli")]
 #[must_use]
 pub fn bin_main(spec_json: &str) -> i32 {
     match bin_main_inner(spec_json) {
@@ -90,6 +100,7 @@ pub fn bin_main(spec_json: &str) -> i32 {
     }
 }
 
+#[cfg(feature = "cli")]
 fn bin_main_inner(spec_json: &str) -> Result<(), i32> {
     let cli = Cli::parse();
     let payload = read_payload(cli.r#in.as_deref()).map_err(|e| {
@@ -120,6 +131,7 @@ fn bin_main_inner(spec_json: &str) -> Result<(), i32> {
     Ok(())
 }
 
+#[cfg(feature = "cli")]
 fn read_payload(path: Option<&std::path::Path>) -> io::Result<Vec<u8>> {
     match path {
         None => {
@@ -136,6 +148,7 @@ fn read_payload(path: Option<&std::path::Path>) -> io::Result<Vec<u8>> {
     }
 }
 
+#[cfg(feature = "cli")]
 fn write_sink(path: Option<&std::path::Path>, bytes: &[u8]) -> io::Result<()> {
     match path {
         None => {
@@ -150,6 +163,7 @@ fn write_sink(path: Option<&std::path::Path>, bytes: &[u8]) -> io::Result<()> {
 }
 
 /// `ExitCode` wrapper for callers that prefer the std type.
+#[cfg(feature = "cli")]
 #[must_use]
 pub fn bin_exit(spec_json: &str) -> ExitCode {
     ExitCode::from(u8::try_from(bin_main(spec_json)).unwrap_or(2))
