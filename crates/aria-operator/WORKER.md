@@ -119,7 +119,9 @@ Every operator serializes this list in this order. `?` members omit when empty/f
 
 **Worker prune (one operation, every operator):** keep `binary_id`, `coverage_state`, `nodes`, `relationships`, `properties`, `content_hash`, `graph`. Drop the rest. Do not prune per-binary.
 
-Production callback (`aria-work-v1`): `{schema, phi_once, asked, ops, results[]}`. `results` holds working verticals only. Absence is not a skeleton.
+Production callback (`aria-work-v1`): `{schema, phi_once, asked, ops, organize, results[]}`. `results` holds working verticals only. Absence is not a skeleton.
+
+`organize` is the slop report (observer, not a judge): `tokens` scanned, `hits` (listed tags that fired), `uncast` (vocabulary gaps), `binaries` (catalog identities that will structure those hits), `nodes` / `edges` / `kinds`. The worker already knows the query depth (`steps`) and which tokens it pushed; this is what the node determined from them.
 
 Map mixers (`BIN.REF.*`) re-feed that callback. Source bytes never change. See [maps/MAPS.md](maps/MAPS.md).
 
@@ -131,7 +133,7 @@ stdin → one JSON document on stdout → **stderr always empty** → exit 0 →
 output ≤ 64 KiB → bindings echoed.
 
 ```bash
-work < request.json            # auto-detected on schemaVersion; or --harness
+work --harness < request.json  # (bare `work <` auto-detects too; in the container CMD is --serve, so pass --harness)
 work --dispatch                # aria-dispatch-v1: capability, executable sha256, 560 binaries
 work --serve 0.0.0.0:8080      # hosted shell: /health /commands /dispatch /work /harness
 ```

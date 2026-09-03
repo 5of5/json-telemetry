@@ -223,12 +223,14 @@ pub fn execute_harness(req: &HarnessRequest) -> HarnessResult {
     // Budget: drop the largest verticals last-first until the result fits.
     // Deterministic (stable sort by size desc, then binary_id), reported.
     let mut dropped = 0usize;
+    let organize = crate::organize_slop(&payload);
     let build = |results: &Vec<Value>| {
         json!({
             "schema": WORK_V1,
             "phi_once": true,
             "asked": asked,
             "ops": results.len(),
+            "organize": organize,
             "results": results,
         })
     };

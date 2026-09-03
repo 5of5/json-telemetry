@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::catalog;
+use crate::organize::{organize_slop, OrganizeReport};
 use crate::run::{run_binary, run_many, OperatorError, RunOpts};
 
 /// Schema tag for a compiled work response.
@@ -60,6 +61,8 @@ pub struct WorkResponse {
     pub asked: usize,
     /// How many working envelopes are in `results`.
     pub ops: usize,
+    /// Tokens, listed hits, and binaries that will structure this slop.
+    pub organize: OrganizeReport,
     /// Working verticals only. Missing data is absence, not an empty object.
     pub results: Vec<Value>,
 }
@@ -148,6 +151,7 @@ pub fn execute_work(req: &WorkRequest, opts_overlay: &RunOpts) -> Result<Value, 
         phi_once: true,
         asked,
         ops: results.len(),
+        organize: organize_slop(&payload),
         results,
     })?)
 }

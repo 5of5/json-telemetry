@@ -10,6 +10,7 @@ mod dispatch;
 mod envelope;
 mod harness;
 mod index;
+mod organize;
 mod run;
 #[cfg(feature = "cli")]
 mod serve;
@@ -32,7 +33,8 @@ pub use envelope::{
     OperatorEnvelope, OperatorGraph, OperatorNode, OperatorRel, OperatorSpec, ENVELOPE_KEYS,
 };
 pub use run::{run_binary, run_many, run_spec, OperatorError, RunOpts};
-pub use typecast::{cast_lexicon, cast_tags, uncast_fields};
+pub use organize::{organize_slop, OrganizeReport};
+pub use typecast::{cast_lexicon, cast_tags, tag_phrase, uncast_fields};
 pub use work_api::{
     callback_results, commands_json, execute_work, looks_like_work_command, WorkRequest,
     WorkResponse, WORK_V1,
@@ -108,11 +110,21 @@ pub fn family_residuals(parent: &str) -> &'static [&'static OperatorSpec] {
         .map_or(&[], Vec::as_slice)
 }
 
+/// Research binaries that declare this exact anchor tag.
+#[must_use]
+pub fn specs_for_tag(tag: &str) -> &'static [&'static OperatorSpec] {
+    intern_maps()
+        .by_anchor
+        .get(tag)
+        .map_or(&[], Vec::as_slice)
+}
+
 struct InternMaps {
     by_id: std::collections::HashMap<&'static str, &'static OperatorSpec>,
     by_operator: std::collections::HashMap<&'static str, &'static OperatorSpec>,
     by_package: std::collections::HashMap<&'static str, &'static OperatorSpec>,
     family: std::collections::HashMap<&'static str, Vec<&'static OperatorSpec>>,
+    by_anchor: std::collections::HashMap<&'static str, Vec<&'static OperatorSpec>>,
 }
 
 fn intern_maps() -> &'static InternMaps {
@@ -124,6 +136,8 @@ fn intern_maps() -> &'static InternMaps {
         let mut by_package = std::collections::HashMap::with_capacity(cat.len());
         let mut family: std::collections::HashMap<&str, Vec<&OperatorSpec>> =
             std::collections::HashMap::new();
+        let mut by_anchor: std::collections::HashMap<&str, Vec<&OperatorSpec>> =
+            std::collections::HashMap::new();
         for s in cat {
             by_id.insert(s.binary_id.as_str(), s);
             by_operator.entry(s.operator.as_str()).or_insert(s);
@@ -134,12 +148,18 @@ fn intern_maps() -> &'static InternMaps {
             {
                 family.entry(s.parent.as_str()).or_default().push(s);
             }
+            if !s.layer.eq_ignore_ascii_case("HOST") {
+                for t in &s.anchor_tags {
+                    by_anchor.entry(t.as_str()).or_default().push(s);
+                }
+            }
         }
         InternMaps {
             by_id,
             by_operator,
             by_package,
             family,
+            by_anchor,
         }
     })
 }

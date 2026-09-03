@@ -146,6 +146,7 @@ pub fn work_main() -> i32 {
                     "phi_once": true,
                     "asked": 1,
                     "ops": results.len(),
+                    "organize": crate::organize_slop(&raw),
                     "results": results,
                 }),
                 cli.out.as_deref(),

@@ -10,7 +10,7 @@ use std::sync::OnceLock;
 use crate::catalog;
 
 /// Designated property keys scanned for cast phrases (00c fields).
-const CAST_PROPS: &[&str] = &[
+pub(crate) const CAST_PROPS: &[&str] = &[
     "title",
     "role",
     "function",
@@ -27,7 +27,7 @@ const CAST_PROPS: &[&str] = &[
 
 /// Single-value fields that may emit `uncast_token` when they match nothing.
 /// `type` / `kind` are scan-only (they name graph kinds, not vocabulary gaps).
-const UNCAST_PROPS: &[&str] = &[
+pub(crate) const UNCAST_PROPS: &[&str] = &[
     "title",
     "role",
     "function",
@@ -85,7 +85,13 @@ fn inflections(phrase: &str) -> Vec<String> {
     out
 }
 
-fn phrase_from_tag(tag: &str) -> String {
+/// Catalog tag → lowercase phrase the lexicon matches (`PERSON_FOUNDER` → `founder`).
+#[must_use]
+pub fn tag_phrase(tag: &str) -> String {
+    phrase_from_tag(tag)
+}
+
+pub(crate) fn phrase_from_tag(tag: &str) -> String {
     let mut rest = tag;
     let mut prefixes: Vec<&str> = PREFIXES.to_vec();
     prefixes.sort_by_key(|p| std::cmp::Reverse(p.len()));
@@ -98,7 +104,7 @@ fn phrase_from_tag(tag: &str) -> String {
     rest.replace('_', " ").to_ascii_lowercase()
 }
 
-fn tokenize(s: &str) -> Vec<String> {
+pub(crate) fn tokenize(s: &str) -> Vec<String> {
     s.to_ascii_lowercase()
         .split(|c: char| !c.is_alphanumeric())
         .filter(|t| !t.is_empty())
@@ -184,7 +190,7 @@ pub fn cast_tags(rec: &NodeRecord) -> Vec<String> {
     out
 }
 
-fn casts_in_value(value: &str) -> bool {
+pub(crate) fn casts_in_value(value: &str) -> bool {
     let toks = tokenize(value);
     !toks.is_empty() && !matched_phrases(&[toks], cast_lexicon()).is_empty()
 }

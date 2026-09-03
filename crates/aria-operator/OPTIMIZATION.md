@@ -10,7 +10,7 @@ callback bytes out. Neo4j is memory.
 |---|---|
 | Library | `run_binary` / `run_many` / `execute_work` — one ingest, N independent projectors |
 | CLI / API | `work` — `--binary`, `--json`, `--commands`, `--harness`, `--dispatch`, `--serve` |
-| Callback | `aria-work-v1`: `{schema, phi_once, asked, ops, results[]}` — **working verticals only** |
+| Callback | `aria-work-v1`: `{schema, phi_once, asked, ops, organize, results[]}` — **working verticals only** plus the slop report |
 | Harness | `pcvc-aria-telemetry-request/result-v1`, capability `aria.telemetry.project`, stderr empty, ≤ 64 KiB |
 | Container | `Dockerfile` target `work`: scratch, static MUSL (asserted with `ldd`), UID 65534, stdin→stdout or `:8080`. Measured image **2.04 MB** (`aria-work:0.2.1`) |
 | Hosted shell | fixed pool 4× cores · bounded queue 1024 · `503 Retry-After` past the queue · 10 s socket deadlines · static routes cached · zero shared mutable state |
