@@ -16,9 +16,11 @@ publish = true
 include = [
     "src/**/*",
     "catalog/**/*",
+    "maps/**/*",
     "README.md",
     "WORKER.md",
     "PLAN.md",
+    "OPTIMIZATION.md",
 ]
 
 [lib]

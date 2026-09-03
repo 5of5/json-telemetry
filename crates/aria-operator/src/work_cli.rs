@@ -4,8 +4,9 @@
 //! binary remains its own crate. This process is the only expand point.
 
 use crate::{
-    catalog, commands_json, endpoint_by_binary_id, endpoint_by_operator, endpoint_by_package,
-    execute_work, looks_like_work_command, run_binary, RunOpts, WorkRequest,
+    catalog, commands_json, dispatch_json, endpoint_by_binary_id, endpoint_by_operator,
+    endpoint_by_package, execute_work, harness_lane, looks_like_work_command, run_binary, RunOpts,
+    WorkRequest, HARNESS_REQUEST_V1,
 };
 use clap::Parser;
 use serde_json::Value;
@@ -58,6 +59,17 @@ struct Cli {
     /// Embed the Aria telemetry spine. Off by default.
     #[arg(long)]
     telemetry: bool,
+    /// PCVC Mode 4 harness lane: stdin = pcvc-aria-telemetry-request-v1,
+    /// stdout = bound result, stderr silent. Auto-detected by schemaVersion.
+    #[arg(long)]
+    harness: bool,
+    /// Host the whole catalog over HTTP on ADDR (e.g. 0.0.0.0:8080).
+    #[arg(long, value_name = "ADDR")]
+    serve: Option<String>,
+    /// Emit aria-dispatch-v1 (registry descriptor: capability, executable
+    /// sha256, all 560 binaries with their grammar position).
+    #[arg(long)]
+    dispatch: bool,
 }
 
 /// Process entry for `work`. Returns an exit code.
@@ -67,8 +79,20 @@ pub fn work_main() -> i32 {
     if cli.commands {
         return dump(&commands_json(), cli.out.as_deref());
     }
+    if cli.dispatch {
+        return dump(&dispatch_json(), cli.out.as_deref());
+    }
     if cli.list {
         return list_tsv();
+    }
+    if let Some(addr) = &cli.serve {
+        return match crate::serve(addr, &opts_from(&cli)) {
+            Ok(()) => 0,
+            Err(e) => {
+                eprintln!("work: serve {addr}: {e}");
+                3
+            }
+        };
     }
 
     let raw = match read_payload(cli.r#in.as_deref()) {
@@ -78,6 +102,15 @@ pub fn work_main() -> i32 {
             return 3;
         }
     };
+
+    // Harness lane: never touches stderr; protocol errors come back as JSON.
+    if cli.harness || looks_like_harness(&raw) {
+        let (code, out) = harness_lane(&raw);
+        return match write_sink(cli.out.as_deref(), &out) {
+            Ok(()) => code,
+            Err(_) => 3,
+        };
+    }
 
     let named = cli.binary.is_some() || cli.operator.is_some() || cli.package.is_some();
     let as_json = cli.json || (!named && looks_like_bytes(&raw));
@@ -179,6 +212,12 @@ fn resolve(cli: &Cli) -> Result<String, String> {
     } else {
         Err("unreachable".into())
     }
+}
+
+fn looks_like_harness(raw: &[u8]) -> bool {
+    serde_json::from_slice::<Value>(raw)
+        .ok()
+        .is_some_and(|v| v.get("schemaVersion").and_then(Value::as_str) == Some(HARNESS_REQUEST_V1))
 }
 
 fn looks_like_bytes(raw: &[u8]) -> bool {

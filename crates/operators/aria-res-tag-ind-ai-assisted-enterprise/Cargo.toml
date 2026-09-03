@@ -20,7 +20,7 @@ name = 'aria-res-tag-ind-ai-assisted-enterprise'
 path = "src/main.rs"
 
 [dependencies]
-aria-json-telemetry = { path = "../../aria-operator", version = "0.2.0", features = ["cli"] }
+aria-json-telemetry = { workspace = true, features = ["cli"] }
 
 [lints]
 workspace = true

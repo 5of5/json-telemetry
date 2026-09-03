@@ -8,12 +8,22 @@
 
 mod dispatch;
 mod envelope;
+mod harness;
 mod index;
 mod run;
+#[cfg(feature = "cli")]
+mod serve;
 mod typecast;
 mod work_api;
 #[cfg(feature = "cli")]
 mod work_cli;
+
+pub use harness::{
+    dispatch_json, execute_harness, harness_lane, HarnessError, HarnessRequest, HarnessResult,
+    DEFAULT_OUTPUT_LIMIT, HARNESS_CAPABILITY, HARNESS_REQUEST_V1, HARNESS_RESULT_V1,
+};
+#[cfg(feature = "cli")]
+pub use serve::serve;
 
 pub use dispatch::{
     endpoint_by_binary_id, endpoint_by_operator, endpoint_by_package, WorkerEndpoint,

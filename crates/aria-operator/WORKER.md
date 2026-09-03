@@ -122,3 +122,28 @@ Every operator serializes this list in this order. `?` members omit when empty/f
 Production callback (`aria-work-v1`): `{schema, phi_once, asked, ops, results[]}`. `results` holds working verticals only. Absence is not a skeleton.
 
 Map mixers (`BIN.REF.*`) re-feed that callback. Source bytes never change. See [maps/MAPS.md](maps/MAPS.md).
+
+## PCVC Mode 4 harness lane
+
+`work` speaks the `mode4/binaries/driver.py` contract directly (tracked as
+[5of5/pcvc#70](https://github.com/5of5/pcvc/issues/70)): canonical JSON on
+stdin → one JSON document on stdout → **stderr always empty** → exit 0 →
+output ≤ 64 KiB → bindings echoed.
+
+```bash
+work < request.json            # auto-detected on schemaVersion; or --harness
+work --dispatch                # aria-dispatch-v1: capability, executable sha256, 560 binaries
+work --serve 0.0.0.0:8080      # hosted shell: /health /commands /dispatch /work /harness
+```
+
+| | |
+|---|---|
+| request | `pcvc-aria-telemetry-request-v1` — `capability: aria.telemetry.project`, `runId`, `planHash`, `attemptId`, `fencingToken`, `requirementId`, `ops[]`, `payload`, `steps` (0), `seed` (1), `outputLimitBytes` (≤ 65536) |
+| result | `pcvc-aria-telemetry-result-v1` — bindings echoed + `status ∈ {result, no-finding, truncation, limitation}` + `callback` (aria-work-v1) |
+| exit 0 | every bound result (engine rejections are bound `limitation`s) |
+| exit 2 | unbound protocol error; stdout carries `{"status":"failure","error":…}` |
+| budget | largest verticals dropped first, deterministically; `droppedVerticals` reported |
+
+One executable, one capability, 560 identities named inside the request.
+Container: `Dockerfile` target `work` (scratch, static, non-root) ·
+`compose.telemetry.yaml`. Registry descriptor: `work --dispatch`.

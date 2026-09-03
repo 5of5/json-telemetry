@@ -1,0 +1,37 @@
+# aria-json-telemetry — the `work` gateway as a serverless telemetry node.
+#
+# One static MUSL binary carries Φ + the whole 560-identity catalog + the
+# 00c lexicon. No shell, no runtime, no state. Same laws as ./Dockerfile:
+# scratch base · static · non-root · stdin→stdout or an HTTP shell.
+#
+#   # PCVC Mode 4 harness lane (stdin JSON → stdout JSON, stderr silent):
+#   docker run -i --network=none aria-work:0.2.1 < request.json
+#
+#   # Hosted shell for serverless / sidecar use:
+#   docker run -p 8080:8080 aria-work:0.2.1
+#   curl -s localhost:8080/health
+#   curl -s -X POST localhost:8080/work -d '{"ops":["BIN.PEOPLE"],"in":{...}}'
+#
+#   # Registry descriptor (capability + executable sha256 + 560 binaries):
+#   docker run --network=none aria-work:0.2.1 --dispatch
+
+FROM rust:1.97-alpine AS builder
+RUN apk add --no-cache musl-dev binutils
+WORKDIR /aria
+COPY . .
+# --locked: the committed Cargo.lock is the audited dependency set.
+# The default alpine target is *-unknown-linux-musl; the binary must be
+# fully static so the scratch stage has nothing to load.
+RUN cargo build --release --locked -p aria-json-telemetry --bin work \
+ && strip target/release/work \
+ && sha256sum target/release/work | tee /aria/work.sha256 \
+ && (ldd target/release/work 2>&1 | tee /tmp/ldd.out | grep -qiE 'not a (valid )?dynamic|statically linked' \
+     || ! grep -q '=>' /tmp/ldd.out)
+
+FROM scratch
+COPY --from=builder /aria/target/release/work /work
+COPY --from=builder /aria/work.sha256 /work.sha256
+USER 65534:65534
+EXPOSE 8080
+ENTRYPOINT ["/work"]
+CMD ["--serve", "0.0.0.0:8080", "--steps", "0"]

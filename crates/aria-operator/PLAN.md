@@ -1,6 +1,8 @@
 # Completion plan — one JSON telemetry operator, 560 identities
 
-**Status:** working plan for `5of5/json-telemetry` `v3.0.0` (`f895e4b` and after).
+**Status:** `aria-json-telemetry` **0.2.1** on `5of5/json-telemetry` `v3.0.0`.
+Harness lane, hosted shell, scratch container, and workspace-versioned 560
+operator crates ship in this cut. Measured notes: [OPTIMIZATION.md](OPTIMIZATION.md).
 **Catalog:** [Binary Repository v1](https://docs.google.com/spreadsheets/d/1GkFBE1_ZFclDma3DznJV_ONKXNEmNVx2eKbPl9Vf8OI/edit?gid=1130561225#gid=1130561225) (`01_BINARY_CATALOG`). Local copy: `TRACN Binary Repository v1 (1).xlsx` (not a crate).
 **Not `exec/` truth.** Product authority stays with tracn-api. AriA stays telemetry.
 **Paired:** [WORKER.md](WORKER.md) · [README.md](README.md) · [DUMP_ANALYSIS.md](DUMP_ANALYSIS.md) · [`plan-3.md`](../../plan-3.md) (surgical + Obsidian dump).

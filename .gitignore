@@ -1,5 +1,12 @@
 # Local dump analysis (garbage collection / operator scores)
 /dump/
+
+# Proprietary workbook — the binary grammar source. Local reference only;
+# the frozen public digest is crates/aria-operator/catalog/operators.json.
+/TRACN Binary Repository v1*.xlsx
+
+# One-shot measurement scratch (superseded by dump/analysis.json).
+/measure-binary-repo-now.md
 # --- OS ---
 .DS_Store
 .DS_Store?

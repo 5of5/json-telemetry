@@ -1835,7 +1835,10 @@ fn main() {
             .into_owned();
         let dest = vault.join("Aria-Telemetry").join(&name);
         fs::create_dir_all(&dest).expect("obsidian Aria-Telemetry dir");
-        for md in ["SCORE.md", "found.md", "forgot.md", "original.md", "graph.md", "review.md", "workers.md"] {
+        for md in [
+            "SCORE.md", "found.md", "forgot.md", "original.md", "graph.md", "review.md",
+            "workers.md", "operator_coverage.md",
+        ] {
             fs::copy(dir.join(md), dest.join(md)).expect("obsidian copy");
         }
         for entry in fs::read_dir(&dir).expect("dump dir") {

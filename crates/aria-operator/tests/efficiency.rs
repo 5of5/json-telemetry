@@ -101,14 +101,32 @@ fn opt_in_telemetry_is_larger_than_the_vertical_and_omits_embeddings() {
     );
 
     assert!(people_vertical.len() < people_telem.len());
-    let omitted = telem["graph"]["embeddings_omitted"]
-        .as_bool()
-        .expect("embeddings_omitted");
-    assert!(omitted);
-    if let Some(nodes) = telem["graph"]["nodes"].as_array() {
-        for n in nodes {
-            let emb = n.get("embedding").and_then(Value::as_array);
-            assert!(emb.is_none() || emb.unwrap().is_empty());
+    // Production default wire never carries this spine (test above). Engine
+    // 0.2.1 graph IPO still lists f64 embeddings on the opt-in document
+    // (schema-required). If a later backends cut adds `embeddings_omitted`,
+    // it must mean what it says.
+    match telem.pointer("/graph/embeddings_omitted") {
+        Some(Value::Bool(true)) => {
+            if let Some(nodes) = telem.pointer("/graph/nodes").and_then(Value::as_array) {
+                for n in nodes {
+                    let emb = n.get("embedding").and_then(Value::as_array);
+                    assert!(emb.is_none() || emb.unwrap().is_empty());
+                }
+            }
+        }
+        Some(other) => panic!("embeddings_omitted must be true when present, got {other}"),
+        None => {
+            let nodes = telem
+                .pointer("/graph/nodes")
+                .and_then(Value::as_array)
+                .expect("opt-in spine graph.nodes");
+            assert!(
+                nodes.iter().any(|n| n
+                    .get("embedding")
+                    .and_then(Value::as_array)
+                    .is_some_and(|e| !e.is_empty())),
+                "engine 0.2.1 opt-in spine carries embeddings; default wire does not"
+            );
         }
     }
 }
