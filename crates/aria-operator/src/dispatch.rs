@@ -4,7 +4,6 @@
 //! The worker does not choose the next binary. It execs this crate's bin,
 //! passes unstructured JSON, and must receive a closed operator envelope.
 
-use crate::catalog;
 use crate::envelope::OperatorSpec;
 
 /// How a Mode 4 worker invokes one catalog binary.
@@ -48,26 +47,17 @@ impl From<&OperatorSpec> for WorkerEndpoint {
 /// Point a worker at a `BIN.*` work definition.
 #[must_use]
 pub fn endpoint_by_binary_id(binary_id: &str) -> Option<WorkerEndpoint> {
-    catalog()
-        .iter()
-        .find(|s| s.binary_id == binary_id)
-        .map(WorkerEndpoint::from)
+    crate::spec_by_id(binary_id).map(WorkerEndpoint::from)
 }
 
 /// Point a worker at a catalog operator name (`PEOPLE`, `TAG.PERSON_FOUNDER`, …).
 #[must_use]
 pub fn endpoint_by_operator(operator: &str) -> Option<WorkerEndpoint> {
-    catalog()
-        .iter()
-        .find(|s| s.operator == operator)
-        .map(WorkerEndpoint::from)
+    crate::spec_by_operator(operator).map(WorkerEndpoint::from)
 }
 
 /// Point a worker at a cargo package (`aria-telemetry-people`).
 #[must_use]
 pub fn endpoint_by_package(package: &str) -> Option<WorkerEndpoint> {
-    catalog()
-        .iter()
-        .find(|s| s.package == package)
-        .map(WorkerEndpoint::from)
+    crate::spec_by_package(package).map(WorkerEndpoint::from)
 }

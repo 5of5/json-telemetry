@@ -79,6 +79,10 @@ pub struct OperatorNode {
     /// Declared kind for this operator.
     #[serde(rename = "kind")]
     pub kind: String,
+    /// Explicit ∪ 00c-cast tags on this node. Omitted when empty so the
+    /// default PEOPLE vertical does not grow. Mixers re-ingest this field.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
 }
 
 /// One typed relationship on the operator envelope.

@@ -107,6 +107,7 @@ spec
 # means an accidental `git add -A` cannot publish them.
 /plan.md
 /plan-1.md
+/plan-3.md
 /issues.md
 /explainer-101-lowdown-real-shit.md
 /OBJECTIVES.md

@@ -4,7 +4,7 @@ use aria_engine_backends::ipo::{canonical_json, sha256_hex, NodeRecord};
 use aria_engine_backends::telemetry::{transform, TelemetryRequest};
 use aria_engine_core::config::AriaConfig;
 use aria_engine_core::error::AriaError;
-use serde_json::{Map, Value};
+use serde_json::{json, Map, Value};
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use crate::envelope::{OperatorEnvelope, OperatorNode, OperatorRel, OperatorSpec};
@@ -196,7 +196,14 @@ fn flatten_work_telemetry(payload: &[u8]) -> Vec<u8> {
                     .or_else(|| n.get("type"))
                     .and_then(Value::as_str)
                     .unwrap_or("Observation");
-                nodes.push(serde_json::json!({"id": id, "type": kind, "kind": kind}));
+                let mut obj = serde_json::json!({"id": id, "type": kind, "kind": kind});
+                if let Some(tags) = n.get("tags") {
+                    obj["tags"] = tags.clone();
+                }
+                if let Some(label) = n.get("label").and_then(Value::as_str) {
+                    obj["label"] = json!(label);
+                }
+                nodes.push(obj);
             }
         }
         if let Some(arr) = r.get("relationships").and_then(Value::as_array) {
@@ -423,14 +430,48 @@ fn close_envelope(
 /// Project one operator through the index. Same semantics as the historical
 /// linear scan (kind/label/`kind|type` for node types; explicit ∪ cast tags
 /// for anchors; edge type for relationships), now O(|matches|) per operator.
+/// ENTITY families then union residual/DEEP_TAG verticals (E10) without a
+/// second Φ.
 #[allow(clippy::too_many_lines)]
 fn project(
+    spec: &OperatorSpec,
+    ix: &GraphIndex<'_>,
+) -> (Vec<OperatorNode>, Vec<OperatorRel>, Map<String, Value>) {
+    let (mut nodes, relationships, properties) = project_core(spec, ix);
+    if spec.layer.eq_ignore_ascii_case("ENTITY") && spec.class.eq_ignore_ascii_case("ENTITY") {
+        let mut seen: BTreeSet<u64> = nodes.iter().map(|n| n.id).collect();
+        for child in crate::family_residuals(&spec.operator) {
+            if child.class.eq_ignore_ascii_case("REL") || child.class.eq_ignore_ascii_case("PROP")
+            {
+                continue;
+            }
+            let (extra, _, _) = project_core(child, ix);
+            for n in extra {
+                if seen.insert(n.id) {
+                    nodes.push(n);
+                }
+            }
+        }
+        nodes.sort_by_key(|n| n.id);
+    }
+    (nodes, relationships, properties)
+}
+
+fn project_core(
     spec: &OperatorSpec,
     ix: &GraphIndex<'_>,
 ) -> (Vec<OperatorNode>, Vec<OperatorRel>, Map<String, Value>) {
     let node_of = |i: usize| OperatorNode {
         id: ix.nodes[i].id,
         kind: ix.nodes[i].node_type.as_str().to_string(),
+        // Tags ride TAG / DEEP_TAG verticals only — ENTITY envelopes stay
+        // inside the 768 B PEOPLE budget (E3). Mixers re-ingest tags from
+        // the TAG envelopes on the production callback.
+        tags: if is_tag_op(spec) {
+            ix.tags_of(i).to_vec()
+        } else {
+            Vec::new()
+        },
     };
     let rel_of = |i: usize| OperatorRel {
         from: ix.edges[i].from,
@@ -449,6 +490,12 @@ fn project(
         if let Some(v) = ix.first_prop(key) {
             properties.insert(key.to_string(), v.clone());
         }
+    }
+
+    // E5: family TAG + DEEP_TAG with no explicit tags and no 00c hits are
+    // empty. Residual TAG still matches kind.
+    if is_tag_op(spec) && !spec.layer.eq_ignore_ascii_case("RESIDUAL") && !ix.has_tags() {
+        return (Vec::new(), Vec::new(), properties);
     }
 
     let allowed_nodes: Vec<String> = spec.node_types.iter().map(|s| norm(s)).collect();

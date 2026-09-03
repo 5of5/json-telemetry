@@ -18,14 +18,20 @@
 # PCVC registry manifest.
 
 FROM rust:1.97-alpine AS builder
-RUN apk add --no-cache musl-dev
+RUN apk add --no-cache musl-dev binutils
 WORKDIR /aria
 COPY . .
+# The alpine default target is *-unknown-linux-musl; both binaries must be
+# fully static so the scratch stages have nothing to load — asserted below.
 RUN cargo build --release --locked \
       -p aria-engine --bin aria \
       -p aria-json-telemetry --bin work \
- && strip target/release/aria target/release/work 2>/dev/null || true \
- && sha256sum target/release/work > /aria/work.sha256
+ && strip target/release/aria target/release/work \
+ && sha256sum target/release/work | tee /aria/work.sha256 \
+ && for b in aria work; do \
+      ldd target/release/$b 2>&1 | tee /tmp/ldd.out | grep -qiE 'not a (valid )?dynamic|statically linked' \
+        || ! grep -q '=>' /tmp/ldd.out || exit 1; \
+    done
 
 # ── telemetry node (default for public deployment) ─────────────────
 FROM scratch AS work

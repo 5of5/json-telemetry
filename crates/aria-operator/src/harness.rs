@@ -291,11 +291,19 @@ pub fn harness_lane(raw: &[u8]) -> (i32, Vec<u8>) {
 /// identity, so the harness can record exact hashes (Mode 4 step 5).
 #[must_use]
 pub fn dispatch_json() -> Value {
-    let exe = std::env::current_exe().ok();
-    let exe_sha = exe
-        .as_ref()
-        .and_then(|p| std::fs::read(p).ok())
-        .map(|b| aria_engine_backends::ipo::sha256_hex(&b));
+    // The executable's identity is fixed for the life of the process; hash it
+    // once (a hosted node serves /dispatch to every registry probe).
+    static EXE: std::sync::OnceLock<(Option<std::path::PathBuf>, Option<String>)> =
+        std::sync::OnceLock::new();
+    let (exe, exe_sha) = EXE.get_or_init(|| {
+        let exe = std::env::current_exe().ok();
+        let sha = exe
+            .as_ref()
+            .and_then(|p| std::fs::read(p).ok())
+            .map(|b| aria_engine_backends::ipo::sha256_hex(&b));
+        (exe, sha)
+    });
+    let (exe, exe_sha) = (exe.clone(), exe_sha.clone());
     let binaries: Vec<Value> = crate::catalog()
         .iter()
         .map(|s| {

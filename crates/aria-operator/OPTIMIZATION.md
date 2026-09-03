@@ -12,11 +12,20 @@ callback bytes out. Neo4j is memory.
 | CLI / API | `work` — `--binary`, `--json`, `--commands`, `--harness`, `--dispatch`, `--serve` |
 | Callback | `aria-work-v1`: `{schema, phi_once, asked, ops, results[]}` — **working verticals only** |
 | Harness | `pcvc-aria-telemetry-request/result-v1`, capability `aria.telemetry.project`, stderr empty, ≤ 64 KiB |
-| Container | `Dockerfile.work`: scratch, static MUSL, UID 65534, stdin→stdout or `:8080`. Measured image **2.04 MB** (`aria-work:0.2.1`) |
+| Container | `Dockerfile` target `work`: scratch, static MUSL (asserted with `ldd`), UID 65534, stdin→stdout or `:8080`. Measured image **2.04 MB** (`aria-work:0.2.1`) |
+| Hosted shell | fixed pool 4× cores · bounded queue 1024 · `503 Retry-After` past the queue · 10 s socket deadlines · static routes cached · zero shared mutable state |
 
 560 catalog identities (535 research/host + 25 `BIN.REF.*` mixers). Operators
 are workspace `0.2.1` and `publish = false`. The published crate *is* all 560
 via `work --commands` / `run_many`.
+
+Surgery S1–S8 is projector-side (not 560 src edits): family TAG requires the
+tag; HOST empty limitation no Φ; VERIFY=F empty vertical; 00c type-cast;
+sheet first-sort; COMPANY control; empty `content_hash` sharing is correct;
+REL/PROP dark is not a bug. E4 interned catalog lookups. E5 skips family
+TAG / DEEP_TAG when the graph has no tags. E9 `catalog/dispatch.json` (560
+rows). E10 `BIN.PEOPLE` = union of PEOPLE residuals / DEEP_TAGs (one ingest;
+REL residuals not unioned, so Company does not leak).
 
 ## Projector cost (how the node stays cheap)
 
@@ -52,6 +61,11 @@ One callback is reusable without re-asking Neo4j.
 | `K_reuse` | 35 | binaries that light on one payload |
 | depth-2 | = depth-1 | re-feeding the callback does not invent kinds (closed grammar) |
 | fleet | 64 workers, sequential vs `std::thread::scope` | **byte-identical** callbacks; 25 → 89 ops/s (2.6 s → 0.7 s wall) |
+| hosted shell | 32 clients × 8 `/harness` calls over TCP (`tests/serve_load.rs`) | **1 distinct body**, 0 errors, 0 shed, ~950 ops/s (debug, 12 cores) |
+
+Per-request constants removed on this path: `spec_by_id` is a hash lookup
+(was a 560-row scan per op), `/dispatch` hashes the executable once per
+process (was a file read + sha256 per call).
 
 Dump `output_260902_2317` (P3-3): Trust **0**, garbage Person **0**, HOST **0**,
 missing `content_hash` **0**, mixed role-tag FP **0**, semantic **90**, quality

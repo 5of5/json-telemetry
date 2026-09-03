@@ -23,7 +23,7 @@ pub use harness::{
     DEFAULT_OUTPUT_LIMIT, HARNESS_CAPABILITY, HARNESS_REQUEST_V1, HARNESS_RESULT_V1,
 };
 #[cfg(feature = "cli")]
-pub use serve::serve;
+pub use serve::{serve, serve_background};
 
 pub use dispatch::{
     endpoint_by_binary_id, endpoint_by_operator, endpoint_by_package, WorkerEndpoint,
@@ -56,6 +56,8 @@ pub const OPERATOR_ENVELOPE_V1: &str = "aria-operator-envelope-v1";
 pub const OPERATOR_SCHEMA_VERSION: &str = "1.0.0";
 /// Frozen catalog shipped with this crate (560 rows: 535 research/host + 25 map mixers).
 pub const CATALOG_JSON: &str = include_str!("../catalog/operators.json");
+/// Slim PCVC spawn table (M7 / E9): 560 rows, no graph block.
+pub const DISPATCH_JSON: &str = include_str!("../catalog/dispatch.json");
 
 static CATALOG: OnceLock<Vec<OperatorSpec>> = OnceLock::new();
 
@@ -70,10 +72,76 @@ pub fn catalog() -> &'static [OperatorSpec] {
         .as_slice()
 }
 
-/// Look up one catalog row.
+/// Look up one catalog row by `BIN.*` (interned, O(1)).
 #[must_use]
 pub fn spec_by_id(binary_id: &str) -> Option<&'static OperatorSpec> {
-    catalog().iter().find(|s| s.binary_id == binary_id)
+    intern_maps()
+        .by_id
+        .get(binary_id)
+        .copied()
+}
+
+/// Look up one catalog row by operator name (`PEOPLE`, `TAG.PERSON_FOUNDER`, …).
+#[must_use]
+pub fn spec_by_operator(operator: &str) -> Option<&'static OperatorSpec> {
+    intern_maps()
+        .by_operator
+        .get(operator)
+        .copied()
+}
+
+/// Look up one catalog row by cargo package.
+#[must_use]
+pub fn spec_by_package(package: &str) -> Option<&'static OperatorSpec> {
+    intern_maps()
+        .by_package
+        .get(package)
+        .copied()
+}
+
+/// Residual + DEEP_TAG specs whose `parent` is this family operator (E10).
+#[must_use]
+pub fn family_residuals(parent: &str) -> &'static [&'static OperatorSpec] {
+    intern_maps()
+        .family
+        .get(parent)
+        .map_or(&[], Vec::as_slice)
+}
+
+struct InternMaps {
+    by_id: std::collections::HashMap<&'static str, &'static OperatorSpec>,
+    by_operator: std::collections::HashMap<&'static str, &'static OperatorSpec>,
+    by_package: std::collections::HashMap<&'static str, &'static OperatorSpec>,
+    family: std::collections::HashMap<&'static str, Vec<&'static OperatorSpec>>,
+}
+
+fn intern_maps() -> &'static InternMaps {
+    static M: OnceLock<InternMaps> = OnceLock::new();
+    M.get_or_init(|| {
+        let cat = catalog();
+        let mut by_id = std::collections::HashMap::with_capacity(cat.len());
+        let mut by_operator = std::collections::HashMap::with_capacity(cat.len());
+        let mut by_package = std::collections::HashMap::with_capacity(cat.len());
+        let mut family: std::collections::HashMap<&str, Vec<&OperatorSpec>> =
+            std::collections::HashMap::new();
+        for s in cat {
+            by_id.insert(s.binary_id.as_str(), s);
+            by_operator.entry(s.operator.as_str()).or_insert(s);
+            by_package.entry(s.package.as_str()).or_insert(s);
+            if !s.parent.is_empty()
+                && (s.layer.eq_ignore_ascii_case("RESIDUAL")
+                    || s.layer.eq_ignore_ascii_case("DEEP_TAG"))
+            {
+                family.entry(s.parent.as_str()).or_default().push(s);
+            }
+        }
+        InternMaps {
+            by_id,
+            by_operator,
+            by_package,
+            family,
+        }
+    })
 }
 
 /// Wave ladder height (sheet 12 `wave` column): A→1, B→2, C→3, D→4.

@@ -174,14 +174,17 @@ fn company_typed_does_not_light_people() {
 }
 
 #[test]
-fn unstructured_company_notes_are_forgotten_not_guessed() {
+fn unstructured_company_notes_cast_company_not_people() {
+    // S4 + E10: listed tokens (infrastructure / fintech) tag the observation
+    // into the COMPANY family. PEOPLE stays dark. No Person node is minted.
     let payload = serde_json::to_vec(&json!({
         "notes": ["Acme builds payments infrastructure in fintech"]
     }))
     .unwrap();
     let company = run_binary("BIN.COMPANY", &payload, &opts()).unwrap();
-    assert_eq!(company.coverage_state, "no-finding");
-    assert!(company.nodes.is_empty());
+    assert_eq!(company.coverage_state, "proposal");
+    assert!(!company.nodes.is_empty());
+    assert!(company.nodes.iter().all(|n| !n.kind.eq_ignore_ascii_case("person")));
     let people = run_binary("BIN.PEOPLE", &payload, &opts()).unwrap();
     assert_eq!(people.coverage_state, "no-finding");
     assert!(people.nodes.iter().all(|n| !n.kind.eq_ignore_ascii_case("person")));

@@ -42,10 +42,21 @@ work --serve 0.0.0.0:8080              # /health /commands /dispatch /work /harn
 Container (scratch, static MUSL, non-root 65534):
 
 ```bash
-docker build -f Dockerfile.work -t aria-work:0.2.1 .
+docker build --target work -t aria-work:0.2.1 .           # 2.04 MB image
 docker run -i --network=none aria-work:0.2.1 --steps 0 < payload.json
-docker compose -f compose.telemetry.yaml up --build
+docker run -p 8080:8080 aria-work:0.2.1                    # hosted shell
+docker compose -f compose.telemetry.yaml up --build --scale telemetry=4
 ```
+
+## Hosted shell under load
+
+`--serve` is a fixed worker pool (4× cores) over a bounded queue (1024). Past
+the queue the node answers `503 Retry-After: 1` at once instead of adding
+latency; sockets carry 10 s read/write deadlines so a stalled client cannot
+pin a worker; `/health /commands /dispatch` are serialized once per process.
+There is no shared mutable state — nothing to lock, nothing to deadlock.
+Lock: `tests/serve_load.rs` (32 clients × 8 harness calls → one distinct
+body, 0 errors; ~950 ops/s debug build on 12 cores).
 
 ## What it is
 

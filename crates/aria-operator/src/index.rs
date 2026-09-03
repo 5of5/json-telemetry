@@ -21,6 +21,8 @@ pub fn norm(s: &str) -> String {
 /// The kind-only token lives in `by_kind` (residual TAG kind check).
 pub(crate) struct NodeTok {
     pub kindlike: Vec<String>,
+    /// Explicit ∪ 00c-cast tags (normalized).
+    pub tags: Vec<String>,
 }
 
 /// The index. Borrows the transform output; lives for one `run_many`.
@@ -93,7 +95,7 @@ impl<'a> GraphIndex<'a> {
             for t in &tags {
                 push_unique(&mut by_tag, t.clone(), i);
             }
-            tok.push(NodeTok { kindlike });
+            tok.push(NodeTok { kindlike, tags });
         }
         let mut by_rel: HashMap<String, Vec<usize>> = HashMap::new();
         for (i, e) in edges.iter().enumerate() {
@@ -165,5 +167,15 @@ impl<'a> GraphIndex<'a> {
     /// `matches_kind` for one node against a normalised allow-list.
     pub fn kindlike_hits(&self, idx: usize, allowed: &[String]) -> bool {
         self.tok[idx].kindlike.iter().any(|k| allowed.contains(k))
+    }
+
+    /// Explicit ∪ 00c tags on one node (catalog case, not normalized for wire).
+    pub fn tags_of(&self, idx: usize) -> &[String] {
+        &self.tok[idx].tags
+    }
+
+    /// E5: no explicit tags and 00c produced none — family/DEEP_TAG can skip.
+    pub fn has_tags(&self) -> bool {
+        !self.by_tag.is_empty()
     }
 }
