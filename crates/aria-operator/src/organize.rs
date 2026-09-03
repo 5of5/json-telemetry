@@ -63,13 +63,13 @@ pub fn organize_slop(payload: &[u8]) -> OrganizeReport {
     }
     let lex = cast_lexicon();
     let mut hits: BTreeSet<String> = explicit;
+    let l = lex
+        .keys()
+        .map(|p| p.split_whitespace().count())
+        .max()
+        .unwrap_or(1);
     for toks in &tok_lists {
         let mut gram = String::new();
-        let l = lex
-            .keys()
-            .map(|p| p.split_whitespace().count())
-            .max()
-            .unwrap_or(1);
         for i in 0..toks.len() {
             gram.clear();
             for n in 0..l.min(toks.len() - i) {
@@ -84,9 +84,27 @@ pub fn organize_slop(payload: &[u8]) -> OrganizeReport {
         }
     }
 
+    // A binary is recommended only if it would actually fire on these hits.
+    // Family role-TAGs (BUYER, COMPETITOR, …) fire on their *_TAG anchors
+    // only — never on the entity kinds they also list (S1). Recommending
+    // them on a bare "COMPANY" hit would send workers to empty verticals.
+    let hits_norm: BTreeSet<String> = hits.iter().map(|h| crate::index::norm(h)).collect();
     let mut binaries: BTreeSet<(u8, String)> = BTreeSet::new();
     for tag in &hits {
         for spec in specs_for_tag(tag) {
+            if spec.layer.eq_ignore_ascii_case("TAG") {
+                let node_types: Vec<String> =
+                    spec.node_types.iter().map(|t| crate::index::norm(t)).collect();
+                let fires = spec
+                    .anchor_tags
+                    .iter()
+                    .map(|t| crate::index::norm(t))
+                    .filter(|t| !node_types.contains(t))
+                    .any(|t| hits_norm.contains(&t));
+                if !fires {
+                    continue;
+                }
+            }
             let rank = match spec.layer.as_str() {
                 "DEEP_TAG" => 0,
                 "RESIDUAL" => 1,
@@ -139,7 +157,13 @@ fn harvest(
             } else if let Some(arr) = map.get("notes").and_then(Value::as_array) {
                 *nodes += arr.len();
                 for n in arr {
-                    push_text(n, texts);
+                    // Strings are pushed by harvest_node; objects may carry
+                    // `text` instead of `notes` — push that once, here.
+                    if let Value::Object(o) = n {
+                        if o.get("notes").is_none() {
+                            push_text(n, texts);
+                        }
+                    }
                     harvest_node(n, texts, explicit, uncast, kinds);
                 }
             }

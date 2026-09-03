@@ -1,9 +1,9 @@
 # aria-json-telemetry
 
-Published crate for Aria JSON telemetry (`aria_operator` rustc name). **0.2.1.**
+Published crate for Aria JSON telemetry (`aria_operator` rustc name). **0.2.2.**
 
 ```toml
-aria-json-telemetry = "0.2.1"
+aria-json-telemetry = "0.2.2"
 ```
 
 ```bash
@@ -17,7 +17,7 @@ only**. Neo4j is memory. Nothing is stored here.
 
 | Deployed crate | Version | Registry |
 |---|---|---|
-| `aria-json-telemetry` (`work`) | **0.2.1** | crates.io |
+| `aria-json-telemetry` (`work`) | **0.2.2** | crates.io |
 | `aria-engine-core` | 0.2.1 | crates.io (already) |
 | `aria-engine-backends` | 0.2.1 | crates.io (already) |
 | `aria-engine` / `aria-engine-wasm` | 0.2.1 | crates.io (already) |
@@ -42,9 +42,10 @@ work --serve 0.0.0.0:8080              # /health /commands /dispatch /work /harn
 Container (scratch, static MUSL, non-root 65534):
 
 ```bash
-docker build --target work -t aria-work:0.2.1 .           # 2.04 MB image
-docker run -i --network=none aria-work:0.2.1 --steps 0 < payload.json
-docker run -p 8080:8080 aria-work:0.2.1                    # hosted shell
+docker build --target work -t aria-work:0.2.2 .           # 2.04 MB image
+docker run -i --network=none aria-work:0.2.2 --harness < request.json      # PCVC lane
+docker run -i --network=none aria-work:0.2.2 --binary BIN.PEOPLE --steps 0 < payload.json
+docker run -p 8080:8080 aria-work:0.2.2                    # hosted shell
 docker compose -f compose.telemetry.yaml up --build --scale telemetry=4
 ```
 

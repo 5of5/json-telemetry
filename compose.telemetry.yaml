@@ -11,7 +11,7 @@ services:
       context: .
       dockerfile: Dockerfile
       target: work
-    image: aria-work:0.2.1
+    image: aria-work:0.2.2
     command: ["--serve", "0.0.0.0:8080", "--steps", "0"]
     ports:
       - "127.0.0.1:58180:8080"

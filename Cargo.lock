@@ -148,7 +148,7 @@ dependencies = [
 
 [[package]]
 name = "aria-json-telemetry"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "aria-engine-backends",
  "aria-engine-core",

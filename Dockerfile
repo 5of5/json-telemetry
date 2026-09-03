@@ -7,7 +7,10 @@
 #   # telemetry node (public deployment): the whole 560-identity JSON
 #   # telemetry catalog, harness lane, hosted HTTP shell
 #   docker build --target work -t aria-work .
-#   docker run -i --network=none aria-work < request.json     # harness lane
+#   # CMD defaults to the hosted shell; pass --harness for the stdin lane
+#   # (a PCVC worker's argv is ("--harness",) — never rely on auto-detect
+#   # when the image's default command is --serve).
+#   docker run -i --network=none aria-work --harness < request.json
 #   docker run -p 8080:8080 aria-work                         # HTTP on :8080
 #
 #   # transformer engine CLI (verify/bench/emit — see crates/aria-cli)

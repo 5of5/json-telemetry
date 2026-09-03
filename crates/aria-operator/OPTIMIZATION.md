@@ -1,10 +1,10 @@
-# Optimization notes — aria-json-telemetry 0.2.1
+# Optimization notes — aria-json-telemetry 0.2.2
 
 Measured facts for the production node. Φ is five actions. Inv1–4 hold.
 Readout stays outside Φ. The node is **stateless**: request bytes in,
 callback bytes out. Neo4j is memory.
 
-## What 0.2.1 ships
+## What 0.2.2 ships
 
 | Surface | Contract |
 |---|---|
@@ -12,7 +12,7 @@ callback bytes out. Neo4j is memory.
 | CLI / API | `work` — `--binary`, `--json`, `--commands`, `--harness`, `--dispatch`, `--serve` |
 | Callback | `aria-work-v1`: `{schema, phi_once, asked, ops, organize, results[]}` — **working verticals only** plus the slop report |
 | Harness | `pcvc-aria-telemetry-request/result-v1`, capability `aria.telemetry.project`, stderr empty, ≤ 64 KiB |
-| Container | `Dockerfile` target `work`: scratch, static MUSL (asserted with `ldd`), UID 65534, stdin→stdout or `:8080`. Measured image **2.04 MB** (`aria-work:0.2.1`) |
+| Container | `Dockerfile` target `work`: scratch, static MUSL (asserted with `ldd`), UID 65534. Default CMD is `--serve`. PCVC stdin lane is `docker run -i … --harness`. Measured image **2.04 MB** (`aria-work:0.2.2`) |
 | Hosted shell | fixed pool 4× cores · bounded queue 1024 · `503 Retry-After` past the queue · 10 s socket deadlines · static routes cached · zero shared mutable state |
 
 560 catalog identities (535 research/host + 25 `BIN.REF.*` mixers). Operators

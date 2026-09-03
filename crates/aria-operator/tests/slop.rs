@@ -164,3 +164,45 @@ fn company_slop_does_not_structure_as_people() {
     let people = run_many(&["BIN.PEOPLE".into()], &payload, &opts()).unwrap();
     assert!(!people[0].has_working_data());
 }
+
+/// The organize hint is a promise, not a guess: every binary it recommends
+/// returns working data on that exact payload (a worker following the hint
+/// never lands on an empty vertical), and role-TAGs without their `*_TAG`
+/// evidence are never recommended (S1).
+#[test]
+fn organize_hint_never_points_at_an_empty_vertical() {
+    let payload = serde_json::to_vec(&json!({
+        "nodes": [
+            {"id": 1, "type": "Person", "label": "Ada", "notes": "Ada founded Acme"},
+            {"id": 2, "type": "Company", "label": "Acme", "tags": ["COMPANY"]}
+        ],
+        "edges": [{"from": 1, "to": 2, "type": "WORKS_AT"}]
+    }))
+    .unwrap();
+    let report = organize_slop(&payload);
+    assert!(!report.binaries.is_empty());
+    for role in ["BIN.BUYER", "BIN.COMPETITOR", "BIN.PARTNER", "BIN.SELLER", "BIN.SYNDICATE"] {
+        assert!(
+            !report.binaries.iter().any(|b| b == role),
+            "{role} recommended without its role tag"
+        );
+    }
+    let envs = run_many(&report.binaries, &payload, &opts()).unwrap();
+    for e in &envs {
+        assert!(
+            e.has_working_data(),
+            "{} was recommended but returned {} with no data",
+            e.binary_id,
+            e.coverage_state
+        );
+    }
+    // With the role tag present, the role binary IS recommended and DOES fire.
+    let tagged = serde_json::to_vec(&json!({
+        "nodes": [{"id": 1, "type": "Person", "label": "Ada", "tags": ["BUYER_TAG"]}]
+    }))
+    .unwrap();
+    let r2 = organize_slop(&tagged);
+    assert!(r2.binaries.iter().any(|b| b == "BIN.BUYER"));
+    let buyer = run_many(&["BIN.BUYER".to_string()], &tagged, &opts()).unwrap();
+    assert!(buyer[0].has_working_data());
+}

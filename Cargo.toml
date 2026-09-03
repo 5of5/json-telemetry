@@ -40,7 +40,7 @@ readme = "README.md"
 # 535 operator programs stay workspace-only (publish = false).
 aria-engine-core = { version = "0.2.1", path = "crates/aria-core" }
 aria-engine-backends = { version = "0.2.1", path = "crates/aria-backends" }
-aria-json-telemetry = { version = "0.2.1", path = "crates/aria-operator" }
+aria-json-telemetry = { version = "0.2.2", path = "crates/aria-operator" }
 
 # Serialization / config
 serde = { version = "1", features = ["derive"] }
