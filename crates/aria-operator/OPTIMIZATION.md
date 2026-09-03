@@ -1,97 +1,59 @@
-# Optimization notes — aria-json-telemetry 0.2.2
+# Measured behaviour — aria-json-telemetry 0.2.2
 
-Measured facts for the production node. Φ is five actions. Inv1–4 hold.
-Readout stays outside Φ. The node is **stateless**: request bytes in,
-callback bytes out. Neo4j is memory.
-
-## What 0.2.2 ships
+The node is stateless: request bytes in, callback bytes out. Φ is five
+actions; Inv1–4 hold; readout stays outside Φ.
 
 | Surface | Contract |
 |---|---|
 | Library | `run_binary` / `run_many` / `execute_work` — one ingest, N independent projectors |
-| CLI / API | `work` — `--binary`, `--json`, `--commands`, `--harness`, `--dispatch`, `--serve` |
-| Callback | `aria-work-v1`: `{schema, phi_once, asked, ops, organize, results[]}` — **working verticals only** plus the slop report |
-| Harness | `pcvc-aria-telemetry-request/result-v1`, capability `aria.telemetry.project`, stderr empty, ≤ 64 KiB |
-| Container | `Dockerfile` target `work`: scratch, static MUSL (asserted with `ldd`), UID 65534. Default CMD is `--serve`. PCVC stdin lane is `docker run -i … --harness`. Measured image **2.04 MB** (`aria-work:0.2.2`) |
+| CLI | `work` — `--binary`, `--json`, `--commands`, `--harness`, `--dispatch`, `--serve` |
+| Callback | `aria-work-v1`: `{schema, phi_once, asked, ops, organize, results[]}` — working verticals only |
+| Harness | `--harness`: stdin → stdout, stderr empty, ≤ 64 KiB, bindings echoed |
+| Container | `Dockerfile` target `work`: scratch, static (asserted with `ldd`), UID 65534, **2.04 MB** |
 | Hosted shell | fixed pool 4× cores · bounded queue 1024 · `503 Retry-After` past the queue · 10 s socket deadlines · static routes cached · zero shared mutable state |
 
-560 catalog identities (535 research/host + 25 `BIN.REF.*` mixers). Operators
-are workspace `0.2.1` and `publish = false`. The published crate *is* all 560
-via `work --commands` / `run_many`.
+560 catalog identities (535 research/host + 25 `BIN.REF.*` mixers), all
+served by one binary.
 
-Surgery S1–S8 is projector-side (not 560 src edits): family TAG requires the
-tag; HOST empty limitation no Φ; VERIFY=F empty vertical; 00c type-cast;
-sheet first-sort; COMPANY control; empty `content_hash` sharing is correct;
-REL/PROP dark is not a bug. E4 interned catalog lookups. E5 skips family
-TAG / DEEP_TAG when the graph has no tags. E9 `catalog/dispatch.json` (560
-rows). E10 `BIN.PEOPLE` = union of PEOPLE residuals / DEEP_TAGs (one ingest;
-REL residuals not unioned, so Company does not leak).
+## Projector cost
 
-## Projector cost (how the node stays cheap)
+1. One `GraphIndex` pass, O(N+E): kind, kind-like, tag (explicit ∪ cast),
+   relationship, first-property, id→idx. Every projector is a lookup.
+2. Type-cast is an n-gram scan over a 327-phrase closed lexicon — O(tokens · L),
+   whole-word / phrase only. Unlisted tokens become `uncast_token`.
+3. One serde key order for all 560 envelopes; empty members omit; the
+   callback drops operators with no data.
+4. Host identities never enter Φ.
 
-1. **One `GraphIndex` pass, O(N+E).** Kind, kind-like, tag (explicit ∪ 00c
-   cast), relationship, first-property, and id→idx are built once. Every
-   projector is a lookup, not a rescan.
-2. **00c type-cast is an n-gram lexicon** over 327 closed-vocabulary rows
-   (PERSON_TYPE 62, COMPANY_TYPE 40, INDUSTRY_TYPE 40, CATEGORY_TAG 28,
-   ECOSYSTEM_TAG 28, MAP_LANGUAGE 119, PERSONA_ARCHETYPE 10). Whole-word /
-   phrase only. No LLM. Unlisted tokens become `uncast_token` limitations
-   on ENTITY envelopes, never new nodes.
-3. **Skip-if-empty wire.** `ENVELOPE_KEYS` is one serde order for all 560.
-   Empty members omit. Production callback drops skeletons (`asked` vs `ops`
-   is the audit). Absence is not bias.
-4. **HOST stays out of Φ.** Empty HOST is a limitation, not a graph.
+Byte-identity referee (`scripts/dump_referee.py`) held on every file across
+the index + lexicon rewrite. Identify timings (debug profile):
 
-Dump referee (T1/T2, `scripts/dump_referee.py`): **36/36 files byte-identical**.
-Identify timings vs the pre-index dump:
-
-| Case | Before | After | Factor |
-|---|---|---|---|
-| stress (414 nodes) | 1226 ms | 297 ms | 4.1× |
-| limit_huge | 14505 ms | 3191 ms | 4.5× |
-| tags_storm | 112 ms | 23 ms | 4.9× |
-
-## Virality (measured, not theoretical)
-
-One callback is reusable without re-asking Neo4j.
-
-| Gate | Number | Meaning |
+| Case | Before | After |
 |---|---|---|
-| `K_mix` | 0.71 | 25 mixers lighting / 35 working verticals on the mixed dump |
-| `K_reuse` | 35 | binaries that light on one payload |
-| depth-2 | = depth-1 | re-feeding the callback does not invent kinds (closed grammar) |
-| fleet | 64 workers, sequential vs `std::thread::scope` | **byte-identical** callbacks; 25 → 89 ops/s (2.6 s → 0.7 s wall) |
-| hosted shell | 32 clients × 8 `/harness` calls over TCP (`tests/serve_load.rs`) | **1 distinct body**, 0 errors, 0 shed, ~950 ops/s (debug, 12 cores) |
+| 414-node graph, 560 ops | 1226 ms | 297 ms |
+| 5k nodes / 10k edges | 14.5 s | 3.2 s |
+| 400-tag node | 112 ms | 23 ms |
 
-Per-request constants removed on this path: `spec_by_id` is a hash lookup
-(was a 560-row scan per op), `/dispatch` hashes the executable once per
-process (was a file read + sha256 per call).
+## Concurrency
 
-Dump `output_260902_2317` (P3-3): Trust **0**, garbage Person **0**, HOST **0**,
-missing `content_hash` **0**, mixed role-tag FP **0**, semantic **90**, quality
-**95**, invariants **100**, completeness **100**.
+| Measurement | Result |
+|---|---|
+| 64 workers, sequential vs one thread per core | byte-identical callbacks; 25 → 89 ops/s |
+| 32 clients × 8 harness calls over TCP (`tests/serve_load.rs`) | 1 distinct body, 0 errors, ~950 ops/s (debug) |
+| re-feeding a callback into the 25 mixers, twice | depth-2 output = depth-1 (closed grammar, no runaway) |
 
-Mixed production callback: **35 envelopes / 30 202 B** vs 395 725 B full wire.
+## Hostile input
 
-## How to report a synthesis
+| Input | Behaviour |
+|---|---|
+| 2000-deep nesting | `Err` (recursion limit), bound `limitation`, no panic |
+| duplicate ids / dangling edges | `Err` with the offending position |
+| 1.2 MB text cell · 5k×10k graph · 400-tag node · unicode/injection labels | OK, bounded |
 
-A synthesis is a **callback**, not a narrative.
+Invariants on every run: no Trust/score keys on the wire, no skeleton in a
+callback, garbage never mints a Person, host operators never carry graph data.
 
-1. Bind the Observation Plan (`planHash`, `requirementId`, `fencingToken`).
-2. Send the original anchor as `payload` with `ops` (or `"*"`).
-3. Keep from each working envelope: `binary_id`, `coverage_state`, `nodes`,
-   `relationships`, `properties`, `content_hash`, `graph`.
-4. Re-feed that callback into `BIN.REF.*` for a map view. Source bytes never
-   change.
-5. Quote dump numbers (git SHA, catalog hash, payload hash, Trust=0). Do not
-   relabel Observation→Company inside Φ.
+## Not in this cut
 
-Container health is `work --commands` (catalog load), not a shell.
-
-## What this cut does not do
-
-- No sixth Φ action. No Trust writes. No decoder in Φ.
-- Does not publish the 560 operator crates.
-- Does not bump the workspace to 0.3.0.
-- Does not republish `aria-engine-*` (already 0.2.1 on crates.io).
-- Does not mix in-progress backends G10 work into this package.
+No sixth Φ action. No writes. No decoder in Φ. Operator crates stay
+`publish = false`; the workspace stays below 0.3.0.

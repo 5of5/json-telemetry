@@ -1,7 +1,6 @@
-//! PCVC Mode 4 harness lane.
+//! Harness lane: stdin request → stdout result.
 //!
-//! Mirrors the native-binary protocol PCVC's `mode4/binaries/driver.py`
-//! enforces: canonical JSON on stdin, one JSON document on stdout, **nothing**
+//! The native-binary protocol a worker harness enforces: canonical JSON on stdin, one JSON document on stdout, **nothing**
 //! on stderr, exit 0, bounded output, and every binding field echoed back so
 //! the worker can reject a mismatched result. Statelessness is the contract:
 //! `request bytes → result bytes`, deterministic under the seed.
@@ -21,11 +20,11 @@ pub const HARNESS_REQUEST_V1: &str = "pcvc-aria-telemetry-request-v1";
 pub const HARNESS_RESULT_V1: &str = "pcvc-aria-telemetry-result-v1";
 /// The one closed capability this node registers.
 pub const HARNESS_CAPABILITY: &str = "aria.telemetry.project";
-/// Default stdout budget — matches PCVC's `_OUTPUT_BYTES` (64 KiB).
+/// Default stdout budget (64 KiB).
 pub const DEFAULT_OUTPUT_LIMIT: usize = 64 * 1024;
 
-/// What a PCVC worker sends on stdin. Field names are camelCase to match the
-/// harness's Pydantic aliases; unknown fields are rejected (closed model).
+/// What a worker sends on stdin. camelCase field names; unknown fields are
+/// rejected (closed model).
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct HarnessRequest {
@@ -288,9 +287,9 @@ pub fn harness_lane(raw: &[u8]) -> (i32, Vec<u8>) {
     }
 }
 
-/// `aria-dispatch-v1`: the descriptor PCVC's registry / policy layer pins.
+/// `aria-dispatch-v1`: the descriptor a registry pins.
 /// Everything is a function of the frozen catalog plus this executable's
-/// identity, so the harness can record exact hashes (Mode 4 step 5).
+/// identity, so a harness can record exact executable hashes.
 #[must_use]
 pub fn dispatch_json() -> Value {
     // The executable's identity is fixed for the life of the process; hash it
@@ -342,7 +341,7 @@ pub fn dispatch_json() -> Value {
             "output_limit_bytes": DEFAULT_OUTPUT_LIMIT,
             "default_steps": 0,
             "deterministic": "equal request bytes ⇒ equal result bytes",
-            "state": "none (stateless node; Neo4j is memory)",
+            "state": "none (stateless node)",
         },
         "executable": {
             "name": "work",

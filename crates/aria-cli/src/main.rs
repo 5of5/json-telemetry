@@ -480,7 +480,7 @@ enum Commands {
     },
 }
 
-/// Exit codes for `aria node`, so a PCVC coordinator can branch on the class
+/// Exit codes for `aria node`, so a caller can branch on the class
 /// of failure instead of parsing stderr.
 ///
 /// Deliberately scoped to this subcommand: `run` and `verify` keep their

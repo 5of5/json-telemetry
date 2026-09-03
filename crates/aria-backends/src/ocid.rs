@@ -18,7 +18,7 @@
 //! the refusal surface forbids Aria from holding one — a transform that could
 //! sign on the host's behalf would be an authority. So the chain of custody is:
 //!
-//! 1. The plan authority (`tracn-api`) signs the payload with its Ed25519
+//! 1. The plan authority signs the payload with its Ed25519
 //!    private key and hands the worker the payload, the **public** key, and the
 //!    signature.
 //! 2. Aria verifies the signature over the exact payload bytes. That is where

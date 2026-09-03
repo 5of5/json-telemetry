@@ -1,4 +1,4 @@
-//! 00c / sheet 12 type-cast: free text → closed-vocabulary TAG tokens.
+//! Type-cast: free text → closed-vocabulary TAG tokens.
 //!
 //! Listed DEEP_TAG slugs only. No LLM. No new nodes. Φ is not involved.
 

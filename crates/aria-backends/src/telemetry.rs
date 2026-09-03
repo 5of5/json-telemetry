@@ -28,9 +28,9 @@
 //!
 //! # Where Aria sits
 //!
-//! A TRACN/PCVC worker binary calls this after a Coordinator released it,
+//! A worker binary calls this once it has been released,
 //! inside a sealed Observation Plan. The return value is a *proposal* the
-//! Supervisor and the API may read and need not believe. Trust, Use, and Goal
+//! Any reader may read and need not believe. Trust, Use, and Goal
 //! completion stay with the authorized human. Nothing here assigns them, and
 //! the envelope has no field in which to try.
 

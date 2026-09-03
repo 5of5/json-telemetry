@@ -52,13 +52,13 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::OnceLock;
 
-/// Schema tag for the operator envelope (Binary Repository v1 / sheet 09).
+/// Schema tag for the operator envelope.
 pub const OPERATOR_ENVELOPE_V1: &str = "aria-operator-envelope-v1";
 /// Closed envelope semver carried on every operator document.
 pub const OPERATOR_SCHEMA_VERSION: &str = "1.0.0";
 /// Frozen catalog shipped with this crate (560 rows: 535 research/host + 25 map mixers).
 pub const CATALOG_JSON: &str = include_str!("../catalog/operators.json");
-/// Slim PCVC spawn table (M7 / E9): 560 rows, no graph block.
+/// Slim spawn table: 560 rows, no graph block.
 pub const DISPATCH_JSON: &str = include_str!("../catalog/dispatch.json");
 
 static CATALOG: OnceLock<Vec<OperatorSpec>> = OnceLock::new();
@@ -164,7 +164,7 @@ fn intern_maps() -> &'static InternMaps {
     })
 }
 
-/// Wave ladder height (sheet 12 `wave` column): A→1, B→2, C→3, D→4.
+/// Wave ladder height (catalog `wave`): A→1, B→2, C→3, D→4.
 #[must_use]
 pub fn wave_height(wave: Option<&str>) -> u8 {
     match wave.unwrap_or("") {
@@ -242,7 +242,7 @@ struct Cli {
     /// Coverage key from the sealed plan.
     #[arg(long)]
     requirement_id: Option<String>,
-    /// Embed the Aria telemetry spine (sheet 09: optional). Off by default.
+    /// Embed the Aria telemetry spine (optional). Off by default.
     #[arg(long)]
     telemetry: bool,
 }

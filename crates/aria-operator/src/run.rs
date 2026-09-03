@@ -28,8 +28,8 @@ pub struct RunOpts {
     pub plan_hash: Option<String>,
     /// Coverage key.
     pub requirement_id: Option<String>,
-    /// Embed `aria-telemetry-query-v1` under `telemetry` (sheet 09: optional).
-    /// Default off: the Coordinator reads the vertical. Workers that need the
+    /// Embed `aria-telemetry-query-v1` under `telemetry` (optional).
+    /// Default off: the caller reads the vertical. Workers that need the
     /// spine pass `--telemetry`.
     pub include_telemetry: bool,
 }
@@ -67,7 +67,7 @@ pub enum OperatorError {
 }
 
 impl OperatorError {
-    /// Coordinator exit vocabulary: 1 invariant, 2 config/spec, 3 unused here
+    /// Exit vocabulary: 1 invariant, 2 config/spec, 3 unused here
     /// (I/O is the CLI's job).
     #[must_use]
     pub fn exit_code(&self) -> i32 {

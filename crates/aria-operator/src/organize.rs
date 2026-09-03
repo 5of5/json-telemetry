@@ -1,5 +1,5 @@
 //! Organize report: what slop the worker sent, which listed tokens fired,
-//! which binaries will structure them. Observer only — not a judge, not Trust.
+//! which binaries will structure them. Observer only.
 
 use serde::Serialize;
 use serde_json::Value;

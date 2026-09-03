@@ -3,7 +3,7 @@
 
 # Proprietary workbook — the binary grammar source. Local reference only;
 # the frozen public digest is crates/aria-operator/catalog/operators.json.
-/TRACN Binary Repository v1*.xlsx
+/*.xlsx
 
 # One-shot measurement scratch (superseded by dump/analysis.json).
 /measure-binary-repo-now.md
@@ -108,6 +108,11 @@ spec
 /plan.md
 /plan-1.md
 /plan-3.md
+# Internal planning inside the public crate (implementation-only handoff).
+/crates/aria-operator/PLAN.md
+/crates/aria-operator/DUMP_ANALYSIS.md
+/crates/aria-operator/gen_refiners_and_docs.py
+/crates/aria-operator/generate.py
 /issues.md
 /explainer-101-lowdown-real-shit.md
 /OBJECTIVES.md

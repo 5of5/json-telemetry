@@ -7,7 +7,7 @@
 //! Default dump-dir is `dump/output_{YYMMDD_HHMM}` (UTC). With `--obsidian`,
 //! SCORE.md / found.md / forgot.md / original.md / graph.md + entities/
 //! are copied into `<vault>/Aria-Telemetry/<dir-name>` (human verification
-//! copy, not Trust). `entities/` serializes the graph for Obsidian Graph
+//! copy, not Trust). `entities/` serializes the graph for vault Graph
 //! View: one note per node, `[[wikilink]]` per relation, `#aria/{kind}` tags.
 
 use aria_engine_backends::ipo::sha256_hex;
@@ -282,7 +282,7 @@ fn render_groups(groups: &BTreeMap<(&'static str, String), Vec<String>>) -> Stri
     s
 }
 
-/// Obsidian-safe note title: strip chars Obsidian reserves, keep it unique.
+/// vault-safe note title: strip chars vault reserves, keep it unique.
 fn note_name(label: &str, id: u64, used: &mut BTreeSet<String>) -> String {
     let cleaned: String = label
         .chars()
@@ -304,7 +304,7 @@ fn note_name(label: &str, id: u64, used: &mut BTreeSet<String>) -> String {
     candidate
 }
 
-/// Obsidian graph-view serialization: one note per graph node, edges become
+/// vault graph-view serialization: one note per graph node, edges become
 /// `[[wikilinks]]`, kinds become nested `#aria/{kind}` tags so Graph View
 /// can colour the clusters. Markdown is the view; the dump JSON is the contract.
 /// Anchor hubs: EVERY expressed token gets a hub (the MAX-anchor doctrine —
@@ -392,7 +392,7 @@ fn write_graph_notes(dir: &Path, case_list: &[Case], gr: &Grammar) -> ObsidianSt
     let mut moc = String::from(
         "# Graph — labeled entities, wikilinked by catalog relations\n\
          \nFields `weight::` (category weight = declaring binaries) and `height::` \
-         \n(install wave A→1…C→3) come from the xlsx grammar (02/03/04/12), so this \
+         \n(install wave A→1…C→3) come from the catalog grammar, so this \
          \ndump is a deterministic reflection of the catalog — no run computes its own truth.\n\
          \n## Graph View groups (paste into Groups, one per line)\n\
          \n```text\n\
@@ -673,7 +673,7 @@ fn fleet_summary(rows: &[Value], n: usize, wall_us: u64) -> Value {
     })
 }
 
-/// Production worker simulation (PCVC dispatch model) run twice — sequential
+/// Production worker simulation (dispatch model) run twice — sequential
 /// and parallel (`std::thread::scope`, one thread per core). The node is
 /// stateless, so both must produce identical bytes; the pair also yields a
 /// real throughput number (𝐋T4 / ℙT5). Picks are sha256-keyed: the fleet
@@ -814,7 +814,7 @@ fn workers_md(w: &Value) -> String {
         .map_or(0, |rs| rs.iter().filter(|r| r.get("engine_error").is_some()).count());
     let mut s = String::from(
         "# Production worker plan\n\n\
-         One coordinator spawns **one worker per requirement** (S6): each worker is a \
+         One dispatcher spawns **one worker per requirement**: each worker is a \
          catalog binary; the question payload is the original anchor. Every row below went \
          through the real `execute_work` callback, so what you see is the production wire.\n\n\
          - absent `results` = absence (no skeletons)\n\
@@ -1011,7 +1011,7 @@ struct StressGen {
 }
 
 /// "Sounds true, made-up, all sent": every field fabricated from pools above,
-/// but typed/tagged exactly per the catalog grammar (xlsx is the grammar).
+/// but typed/tagged exactly per the catalog grammar.
 /// Texture comes from hash-keyed sampling of the catalog's own declarations.
 #[allow(clippy::too_many_lines)] // linear generator, four declarative passes
 fn stress_gen() -> StressGen {
@@ -1117,7 +1117,7 @@ fn stress_gen() -> StressGen {
     }
 
     // Family TAG: every already-sent eligible entity without the firing tag
-    // is a lure. COMPANY nodes must not light COMPETITOR (xlsx 01).
+    // is a lure. COMPANY nodes must not light COMPETITOR.
     for spec in specs.iter().filter(|s| s.layer == "TAG" && s.class == "TAG") {
         let kinds: Vec<String> = spec
             .node_types
@@ -1391,7 +1391,7 @@ fn main() {
         "git_sha": git_sha(),
         "catalog_sha256": sha256_hex(ids.join("|").as_bytes()),
         "catalog": ids.len(),
-        "workbook": "TRACN Binary Repository v1 (1).xlsx (sheets 00–14)",
+        "workbook": "frozen catalog (operators.json)",
         "cases": {},
         "scale": [],
         "invariants": {},
@@ -1765,7 +1765,7 @@ fn main() {
     });
 
     // Production worker fleet: 64 deterministic (binary × question) callbacks
-    // through execute_work — the same wire a PCVC spawn receives.
+    // through execute_work — the same wire a host spawn receives.
     let workers = run_workers(&cases(&stress.payload), 64);
     report["workers"] = workers;
 
@@ -1774,7 +1774,7 @@ fn main() {
     }
     fs::write(dir.join("operator_coverage.md"), coverage_md(&coverage)).unwrap();
 
-    // Serialize the graph itself for Obsidian Graph View with the workbook
+    // Serialize the graph itself for vault Graph View with the workbook
     // grammar as fields: weight (category weight), height (wave ladder),
     // anchors (owning binaries). All deterministic from operators.json.
     let gr = grammar();
@@ -1798,7 +1798,7 @@ fn main() {
     .unwrap();
     eprintln!("wrote {}", dir.join("analysis.json").display());
 
-    // Obsidian review notes: numbers from analysis.json only (plan-3 §1).
+    // vault review notes: numbers from analysis.json only (plan-3 §1).
     let found = render_groups(&found_groups);
     let forgot = render_groups(&forgot_groups);
     let mut original = String::from(

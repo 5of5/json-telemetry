@@ -9,7 +9,7 @@ Dedicated transformer. Consumes independent binary JSON telemetries. Prunes / fi
 
 ## Function
 
-AriA transformer pass-through of the ingested graph. Never Judge. Never Trust.
+AriA transformer pass-through of the ingested graph. Pass-through only; no scoring.
 
 ## Use
 
@@ -26,7 +26,7 @@ Production callback: working vertical or nothing. Forget is not delete — origi
 
 ## Maps that consume this
 
-- (not a primary binary on sheet 05, or is itself a map mixer)
+- (not a primary binary for any map, or is itself a map mixer)
 
 ## Sheet notes
 

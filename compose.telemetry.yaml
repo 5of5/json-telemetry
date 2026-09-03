@@ -1,4 +1,4 @@
-# aria-json-telemetry hosted node — drop-in sidecar for a PCVC Mode 4 stack.
+# aria-json-telemetry hosted node — drop-in sidecar for a worker stack.
 #
 #   docker compose -f compose.telemetry.yaml up --build
 #   docker compose -f compose.telemetry.yaml up --build --scale telemetry=4

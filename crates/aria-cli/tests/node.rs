@@ -1,4 +1,4 @@
-//! `aria node` — the binary contract a PCVC coordinator depends on.
+//! `aria node` — the binary contract a host depends on.
 //!
 //! Two things are being pinned here that library tests cannot reach:
 //!

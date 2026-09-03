@@ -8,7 +8,7 @@
 #   # telemetry catalog, harness lane, hosted HTTP shell
 #   docker build --target work -t aria-work .
 #   # CMD defaults to the hosted shell; pass --harness for the stdin lane
-#   # (a PCVC worker's argv is ("--harness",) — never rely on auto-detect
+#   # (a harness passes argv ("--harness",) — never rely on auto-detect
 #   # when the image's default command is --serve).
 #   docker run -i --network=none aria-work --harness < request.json
 #   docker run -p 8080:8080 aria-work                         # HTTP on :8080
@@ -18,7 +18,7 @@
 #   docker run -i --network=none aria-engine node --steps 0 < sheet.json
 #
 # `--dispatch` (or /dispatch) returns each image's self-sha256 for the
-# PCVC registry manifest.
+# registry manifest.
 
 FROM rust:1.97-alpine AS builder
 RUN apk add --no-cache musl-dev binutils

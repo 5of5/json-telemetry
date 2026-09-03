@@ -1,12 +1,12 @@
 //! Worker dispatch: one catalog row is one host capability (Spawning S6).
 //!
-//! The Judge/Coordinator points a worker at exactly one of these endpoints.
+//! A worker is pointed at exactly one of these endpoints.
 //! The worker does not choose the next binary. It execs this crate's bin,
 //! passes unstructured JSON, and must receive a closed operator envelope.
 
 use crate::envelope::OperatorSpec;
 
-/// How a Mode 4 worker invokes one catalog binary.
+/// How a worker invokes one catalog binary.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkerEndpoint {
     /// `BIN.*` — the work definition on the sealed plan.

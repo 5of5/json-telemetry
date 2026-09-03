@@ -1,7 +1,9 @@
 # Operator binaries
 
-535 distinct crates. Each crate is one Binary Repository v1 operator. AriA (`telemetry::transform`) is linked into every binary via `aria-operator`. The closed operator JSON is unique; the nested `telemetry` object is the shared `aria-telemetry-query-v1` spine.
+560 workspace crates, one per catalog identity. Each links `aria-json-telemetry`
+and owns a frozen `spec.json`; the closed operator JSON is unique per crate,
+the transform is shared. All 560 are also reachable from the single `work`
+binary (`work --commands`), which is the deployed surface.
 
-Regenerate: `python3 crates/aria-operator/generate.py`
-
-Completion plan: [`../aria-operator/PLAN.md`](../aria-operator/PLAN.md).
+`publish = false`: these are build targets for hosts that want one executable
+per identity, not published crates.

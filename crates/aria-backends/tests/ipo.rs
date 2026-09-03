@@ -2,7 +2,7 @@
 //!
 //! These tests own the wire format. They must fail if the envelope shape, the
 //! canonical-byte rule, the anchor derivation, or the structural validator
-//! drifts, because those four things are what a TRACN/PCVC host depends on
+//! drifts, because those four things are what a host depends on
 //! without being able to inspect Aria's internals.
 //!
 //! Production `src/` carries no test modules (objective O7); everything that

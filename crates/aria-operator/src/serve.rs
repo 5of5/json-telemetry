@@ -5,7 +5,7 @@
 //! Routes (all JSON, `Connection: close`):
 //!   GET  /health    → {"ok":true,"catalog":560,"version":…,"pool":…}
 //!   GET  /commands  → aria-work-commands-v1 (what Aria compiles against)
-//!   GET  /dispatch  → aria-dispatch-v1 (PCVC registry descriptor)
+//!   GET  /dispatch  → aria-dispatch-v1 (registry descriptor)
 //!   POST /work      → body: work-v1 command {work|ops, in}  → callback
 //!   POST /harness   → body: pcvc-aria-telemetry-request-v1  → bound result
 //!
@@ -26,7 +26,7 @@ use std::sync::mpsc::{sync_channel, Receiver, SyncSender, TrySendError};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
-/// Largest request body accepted (the same order as PCVC's evidence caps).
+/// Largest request body accepted.
 const MAX_BODY: usize = 8 * 1024 * 1024;
 /// Per-socket read/write deadline. A harness that waits longer has a
 /// deadline of its own; the node must not hold a worker for a dead peer.

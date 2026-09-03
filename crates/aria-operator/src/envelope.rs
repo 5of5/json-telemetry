@@ -1,4 +1,4 @@
-//! Closed operator document (Binary Repository v1 / sheet 09) and the frozen
+//! Closed operator document and the frozen
 //! catalog row that defines one crate.
 
 use serde::{Deserialize, Serialize};
@@ -103,7 +103,7 @@ pub struct AnchorWeight {
     /// The declared anchor tag (02 column A).
     pub tag: String,
     /// Category weight: # of research binaries declaring this token
-    /// ("Categories define weight for tagged activity on a map", sheet 02).
+    /// (category weight: how many operators declare the token).
     pub weight: u32,
     /// Wave height ladder: A→1, B→2, C→3, D→4; 0 when no wave is declared.
     pub height: u8,
@@ -111,7 +111,7 @@ pub struct AnchorWeight {
 
 /// Grammar position of this operator's return — a deterministic function of
 /// the frozen catalog, never of the payload. Carried on the wire so any
-/// graph consumer (Obsidian, PCVC, a queue) renders the result as-is instead
+/// graph consumer renders the result as-is instead
 /// of re-deriving the grammar. "Node vs rel vs property" is `class`; the
 /// common/uncommon split is `shape`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -226,10 +226,10 @@ pub struct OperatorEnvelope {
     pub content_hash: String,
     /// Grammar position of this return (weight / height / anchors / shape),
     /// deterministic from the frozen catalog. Graph-first renderers read it;
-    /// additive to sheet 09's required keys.
+    /// additive to the envelope's required keys.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub graph: Option<OperatorGraph>,
-    /// Shared Aria spine. Optional (sheet 09). Not an API contract.
+    /// Shared Aria spine. Optional. Not an API contract.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub telemetry: Option<Value>,
 }
@@ -271,7 +271,7 @@ impl OperatorEnvelope {
 
     /// Working vertical: at least one node, relationship, or property.
     /// Empty no-finding / HOST limitation / empty pass-through are skeletons
-    /// and must not ship on the production callback (PCVC, Neo4j, CLI).
+    /// and must not ship on the production callback.
     #[must_use]
     pub fn has_working_data(&self) -> bool {
         !self.nodes.is_empty() || !self.relationships.is_empty() || !self.properties.is_empty()

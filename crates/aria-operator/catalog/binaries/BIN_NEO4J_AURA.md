@@ -26,7 +26,7 @@ Production callback: working vertical or nothing. Forget is not delete — origi
 
 ## Maps that consume this
 
-- (not a primary binary on sheet 05, or is itself a map mixer)
+- (not a primary binary for any map, or is itself a map mixer)
 
 ## Sheet notes
 

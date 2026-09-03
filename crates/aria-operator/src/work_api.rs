@@ -67,7 +67,7 @@ pub struct WorkResponse {
     pub results: Vec<Value>,
 }
 
-/// Filter a projection set down to envelopes a PCVC worker or Neo4j driver
+/// Filter a projection set down to envelopes a worker
 /// can consume. Dump scoring still uses the unfiltered `run_many` set.
 #[must_use]
 pub fn callback_results(envs: &[crate::OperatorEnvelope]) -> Vec<&crate::OperatorEnvelope> {

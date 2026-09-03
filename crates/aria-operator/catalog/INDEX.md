@@ -1,6 +1,6 @@
 # Binary identities
 
-560 closed operators. Generated from Binary Repository v1 (xlsx 01/05/11/13/14).
+560 closed operators. Generated from the frozen catalog.
 
 ## Index
 

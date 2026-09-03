@@ -9,7 +9,7 @@ map-shaped slice of that same data.
 
 Viral coefficient: one processed payload × 25 mixers = 25 structured map JSON
 results. Mode 2 enrichment reads these envelopes to draw the graphic.
-AriA still never Judges.
+The node never scores.
 
 | # | Map | `BIN.REF.*` | intent | family | primary binaries | rels |
 |---|---|---|---|---|---|---|
@@ -336,7 +336,7 @@ Naming act vs funding act, category formation, temporal signal, creator node.
 - **intent / family / group:** output / brief / BRIEF
 - **kinds:** Company, Market, Category, Claim, Source, Portfolio, MarketMap, Workspace
 - **rels:** ASSERTS, CITES, CONTAINS_MAP
-- **cast rule (13):** Cast brief + completeness + field-contract. Brief does not become a View body inside PCVC.
+- **cast rule (13):** Cast brief + completeness + field-contract.
 - **language tags:** LANG_COMPETE_PROGRAM, LANG_LIST_PRICE_ABSENT, LANG_ANALYST_NODE, LANG_ONE_SCREEN, LANG_ACTIVE_CONTEXT, LANG_FRAMING, LANG_STRUCTURAL_CLAIM, LANG_EXECUTIVE_BRIEF, LANG_ACTIVE_MARKET_CONTEXT, LANG_COMPACT_NARRATIVE, LANG_COMPLETENESS_METRIC, LANG_FIELD_CONTRACT…
 
 Executive brief, completeness metric, field contract, refreshable, active market context.
